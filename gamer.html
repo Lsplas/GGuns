@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: Shadow Protocol</title>
+    <title>PolyCombat: Shadow Velocity</title>
     <style>
         body { margin: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         
         /* UI LAYERS */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
-        /* BOSS HEALTH BAR */
+        /* BOSS HUD */
         #boss-hud {
             position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
-            width: 600px; text-align: center; display: none; /* Hidden until spawn */
+            width: 600px; text-align: center; display: none;
         }
         #boss-name { 
             color: #ff3333; font-weight: 900; font-size: 28px; 
@@ -25,17 +25,17 @@
         }
         #boss-bar-fill {
             width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #ff5500); 
-            transition: width 0.2s; box-shadow: 0 0 15px #ff0000;
+            transition: width 0.1s; box-shadow: 0 0 15px #ff0000;
         }
 
-        /* WAVE NOTIFICATION */
+        /* WAVE TEXT */
         #wave-msg {
             position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
             font-size: 60px; font-weight: 900; color: white; text-shadow: 0 0 20px blue;
             opacity: 0; transition: opacity 0.5s; text-align: center;
         }
 
-        /* PLAYER HUD */
+        /* PLAYER STATS */
         #player-hud {
             position: absolute; bottom: 30px; left: 30px;
             display: flex; flex-direction: column; gap: 10px;
@@ -48,13 +48,6 @@
         #hp-fill { background: #00ff44; }
         #stamina-fill { background: #00ccff; }
 
-        /* CURRENCY */
-        #currency {
-            position: absolute; top: 30px; right: 30px;
-            text-align: right; font-size: 24px; font-weight: bold;
-            text-shadow: 2px 2px 0 #000;
-        }
-
         /* CROSSHAIR */
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
@@ -63,7 +56,7 @@
             box-shadow: 0 0 8px cyan;
         }
         
-        /* DAMAGE OVERLAY */
+        /* DAMAGE FLASH */
         #dmg-flash {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: radial-gradient(circle, transparent 50%, red 150%);
@@ -84,13 +77,12 @@
             border: 2px solid white; transition: 0.2s;
         }
         button:hover { background: white; color: #ff0044; transform: skewX(-10deg) scale(1.1); }
-
     </style>
 </head>
 <body>
 
     <div id="dmg-flash"></div>
-    <div id="wave-msg">WAVE 2<br><span style="font-size:30px; color:violet">THE SHADOW STALKER</span></div>
+    <div id="wave-msg">WAVE 2<br><span style="font-size:30px; color:violet">SHADOW STALKER</span></div>
 
     <div id="menu">
         <h1>TITAN SLAYER</h1>
@@ -102,11 +94,6 @@
         <div id="boss-hud">
             <div id="boss-name">BOSS</div>
             <div id="boss-bar-frame"><div id="boss-bar-fill"></div></div>
-        </div>
-
-        <div id="currency">
-            <div style="color:gold">🪙 <span id="coins">0</span></div>
-            <div style="color:magenta">💎 <span id="gems">0</span></div>
         </div>
 
         <div id="crosshair"></div>
@@ -138,7 +125,7 @@
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import * as CANNON from 'cannon-es';
 
-        // --- GLOBAL SETTINGS ---
+        // --- CONFIG ---
         const CONFIG = {
             gravity: -30,
             playerSpeed: 25,
@@ -146,14 +133,9 @@
             bulletSpeed: 150
         };
 
-        const GAME = {
-            active: false,
-            coins: 0,
-            gems: 0,
-            wave: 0
-        };
+        const GAME = { active: false, wave: 0 };
 
-        // --- SCENE SETUP ---
+        // --- SCENE ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a0a0a);
         scene.fog = new THREE.FogExp2(0x0a0a0a, 0.015);
@@ -162,37 +144,34 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // --- LIGHTING ---
         const ambient = new THREE.AmbientLight(0xffffff, 0.3);
         scene.add(ambient);
-
         const sun = new THREE.DirectionalLight(0xffffff, 0.8);
         sun.position.set(20, 50, 20);
         sun.castShadow = true;
         scene.add(sun);
+        const pLight = new THREE.PointLight(0x00ffff, 0.5, 20);
+        camera.add(pLight);
 
-        const playerLight = new THREE.PointLight(0x00ffff, 0.5, 20);
-        camera.add(playerLight);
-
-        // --- PHYSICS WORLD ---
+        // --- PHYSICS ---
         const world = new CANNON.World();
         world.gravity.set(0, CONFIG.gravity, 0);
         const matDefault = new CANNON.Material();
         const matPlayer = new CANNON.Material();
+        const matBoss = new CANNON.Material();
         
-        const contactNormal = new CANNON.ContactMaterial(matDefault, matPlayer, { friction: 0.1, restitution: 0 });
-        world.addContactMaterial(contactNormal);
+        world.addContactMaterial(new CANNON.ContactMaterial(matDefault, matPlayer, { friction: 0.0, restitution: 0 }));
+        world.addContactMaterial(new CANNON.ContactMaterial(matDefault, matBoss, { friction: 0.0, restitution: 0 }));
 
-        // --- SCREEN SHAKE ---
+        // --- SHAKE ---
         let shakeIntensity = 0;
-        function addShake(amount) { shakeIntensity = amount; }
+        function addShake(amt) { shakeIntensity = amt; }
         function updateShake() {
             if(shakeIntensity > 0) {
-                camera.position.x += (Math.random()-0.5) * shakeIntensity;
-                camera.position.y += (Math.random()-0.5) * shakeIntensity;
+                camera.position.x += (Math.random()-0.5)*shakeIntensity;
+                camera.position.y += (Math.random()-0.5)*shakeIntensity;
                 shakeIntensity *= 0.9;
                 if(shakeIntensity < 0.01) shakeIntensity = 0;
             }
@@ -203,7 +182,6 @@
         function spawnParticles(pos, count, color) {
             const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
             const mat = new THREE.MeshBasicMaterial({ color: color });
-            
             for(let i=0; i<count; i++) {
                 const mesh = new THREE.Mesh(geo, mat);
                 mesh.position.copy(pos);
@@ -211,27 +189,21 @@
                 mesh.position.y += (Math.random()-0.5)*3;
                 mesh.position.z += (Math.random()-0.5)*3;
                 scene.add(mesh);
-
-                const vel = new THREE.Vector3(
-                    (Math.random()-0.5) * 15,
-                    (Math.random()) * 15,
-                    (Math.random()-0.5) * 15
-                );
-                
-                particles.push({ mesh, vel, life: 1.0 });
+                particles.push({ 
+                    mesh, 
+                    vel: new THREE.Vector3((Math.random()-0.5)*15, Math.random()*15, (Math.random()-0.5)*15), 
+                    life: 1.0 
+                });
             }
         }
 
-        // --- GUN MODEL ---
+        // --- WEAPON ---
         const gunGroup = new THREE.Group();
-        const gunMat = new THREE.MeshStandardMaterial({ color: 0x222, roughness: 0.4, metalness: 0.8 });
-        const accentMat = new THREE.MeshStandardMaterial({ color: 0x444 });
-        
-        const gBody = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.25, 0.8), gunMat);
-        const gBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), accentMat);
-        gBarrel.rotation.x = Math.PI/2; gBarrel.position.z = -0.6;
-        
-        gunGroup.add(gBody, gBarrel);
+        const gunMat = new THREE.MeshStandardMaterial({ color: 0x222 });
+        const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.25, 0.8), gunMat);
+        const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), new THREE.MeshStandardMaterial({color:0x444}));
+        gunBarrel.rotation.x = Math.PI/2; gunBarrel.position.z = -0.6;
+        gunGroup.add(gunBody, gunBarrel);
         gunGroup.position.set(0.4, -0.35, -0.6);
         camera.add(gunGroup);
         scene.add(camera);
@@ -246,211 +218,200 @@
                 this.body.linearDamping = 0.9;
                 world.addBody(this.body);
             }
-
             update(dt, input) {
-                if(!input.shift) this.stamina = Math.min(100, this.stamina + dt * 20);
+                if(!input.shift) this.stamina = Math.min(100, this.stamina + dt*20);
                 document.getElementById('stamina-fill').style.width = this.stamina + '%';
 
                 const yaw = camera.rotation.y;
-                const forward = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+                const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
                 const right = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
 
-                let speed = CONFIG.playerSpeed;
-                if(input.shift && this.stamina > 20) {
-                    speed = CONFIG.dashSpeed;
-                    this.stamina -= dt * 60;
-                    camera.fov = THREE.MathUtils.lerp(camera.fov, 90, 0.1);
-                } else {
-                    camera.fov = THREE.MathUtils.lerp(camera.fov, 75, 0.1);
-                }
+                let speed = input.shift && this.stamina > 20 ? CONFIG.dashSpeed : CONFIG.playerSpeed;
+                if(input.shift && this.stamina > 20) { this.stamina -= dt*60; camera.fov = THREE.MathUtils.lerp(camera.fov, 90, 0.1); }
+                else camera.fov = THREE.MathUtils.lerp(camera.fov, 75, 0.1);
                 camera.updateProjectionMatrix();
 
-                const moveVec = new THREE.Vector3();
-                if(input.w) moveVec.add(forward);
-                if(input.s) moveVec.sub(forward);
-                if(input.d) moveVec.add(right);
-                if(input.a) moveVec.sub(right);
-                moveVec.normalize();
+                const move = new THREE.Vector3();
+                if(input.w) move.add(fwd); if(input.s) move.sub(fwd);
+                if(input.d) move.add(right); if(input.a) move.sub(right);
+                move.normalize();
 
-                this.body.velocity.x = moveVec.x * speed;
-                this.body.velocity.z = moveVec.z * speed;
-
+                this.body.velocity.x = move.x * speed;
+                this.body.velocity.z = move.z * speed;
                 if(input.space && Math.abs(this.body.velocity.y) < 0.1) this.body.velocity.y = 15;
 
-                camera.position.copy(this.body.position).add(new THREE.Vector3(0, 1.5, 0));
+                camera.position.copy(this.body.position).add(new THREE.Vector3(0,1.5,0));
                 updateShake();
-
-                gunGroup.position.x = THREE.MathUtils.lerp(gunGroup.position.x, 0.4 + moveVec.x * -0.05, 0.1);
+                
+                gunGroup.position.x = THREE.MathUtils.lerp(gunGroup.position.x, 0.4 + move.x * -0.05, 0.1);
                 gunGroup.position.y = THREE.MathUtils.lerp(gunGroup.position.y, -0.35 + Math.sin(Date.now()*0.01)*0.01, 0.1);
             }
-
             takeDamage(amt) {
                 this.hp -= amt;
                 document.getElementById('hp-fill').style.width = this.hp + '%';
                 addShake(0.5);
-                const flash = document.getElementById('dmg-flash');
-                flash.style.opacity = 0.8;
-                setTimeout(() => flash.style.opacity = 0, 200);
-
-                if(this.hp <= 0) {
-                    alert("MISSION FAILED. REFRESH TO RETRY.");
-                    location.reload();
-                }
+                const f = document.getElementById('dmg-flash'); f.style.opacity = 0.8;
+                setTimeout(()=>f.style.opacity=0, 200);
+                if(this.hp <= 0) { alert("MISSION FAILED"); location.reload(); }
             }
         }
 
-        // --- BOSS FACTORY ---
+        // --- BOSS ---
         class Boss {
             constructor(type) {
-                this.type = type; // 1 = Iron Knight, 2 = Shadow Stalker
-                this.maxHp = type === 1 ? 3000 : 5000;
+                this.type = type;
+                this.maxHp = type === 1 ? 3000 : 6000;
                 this.hp = this.maxHp;
-                this.enraged = false;
                 this.isDead = false;
                 this.deathTimer = 0;
-
-                // Move Timers (Boss 2)
-                this.nextDash = Date.now() + 3000;
-                this.nextSmash = Date.now() + 6000;
+                
+                // Attack Timers
+                this.nextDash = Date.now() + 2000;
+                this.nextSmash = Date.now() + 5000;
                 this.isSmashing = false;
+                this.isDashing = false;
 
-                // Mesh Group
+                // Create Mesh
                 this.mesh = new THREE.Group();
-                
-                // Materials
-                const mainColor = type === 1 ? 0x888899 : 0x111111; // Grey vs Black
-                const glowColor = type === 1 ? 0x00ffff : 0xaa00ff; // Cyan vs Purple
-                
-                const bodyMat = new THREE.MeshStandardMaterial({ color: mainColor, metalness: 0.8, roughness: 0.2 });
-                this.glowMat = new THREE.MeshBasicMaterial({ color: glowColor });
-                
-                // Construct Body
-                const legGeo = new THREE.BoxGeometry(1.5, 4, 1.5);
-                this.legL = new THREE.Mesh(legGeo, bodyMat); this.legL.position.set(-1.5, 2, 0);
-                this.legR = new THREE.Mesh(legGeo, bodyMat); this.legR.position.set(1.5, 2, 0);
-                
-                const torso = new THREE.Mesh(new THREE.BoxGeometry(4, 5, 2.5), bodyMat); torso.position.y = 6.5;
-                const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 2), bodyMat); head.position.y = 10;
+                const col = type === 1 ? 0x888899 : 0x050505;
+                const glow = type === 1 ? 0x00ffff : 0xaa00ff;
+                const mat = new THREE.MeshStandardMaterial({ color: col, metalness: 0.8, roughness: 0.2 });
+                this.glowMat = new THREE.MeshBasicMaterial({ color: glow });
+
+                const leg = new THREE.BoxGeometry(1.5, 4, 1.5);
+                this.legL = new THREE.Mesh(leg, mat); this.legL.position.set(-1.5, 2, 0);
+                this.legR = new THREE.Mesh(leg, mat); this.legR.position.set(1.5, 2, 0);
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(4, 5, 2.5), mat); torso.position.y = 6.5;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 2), mat); head.position.y = 10;
                 const eye = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 0.2), this.glowMat); eye.position.set(0, 10, 1.0);
-
-                this.armL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5, 1.2), bodyMat); this.armL.position.set(-2.8, 7, 0);
                 
-                // Weapon Arm
+                this.armL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5, 1.2), mat); this.armL.position.set(-2.8, 7, 0);
                 this.armR = new THREE.Group();
-                const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5, 1.2), bodyMat);
-                this.armR.add(shoulder);
                 this.armR.position.set(2.8, 7, 0);
+                this.armR.add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 5, 1.2), mat)); // Shoulder
 
-                // WEAPON TYPE
                 if(type === 1) {
-                    // Greatsword
                     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.2, 8, 1), new THREE.MeshStandardMaterial({color:0xcccccc}));
-                    blade.position.set(0, -6, 1);
-                    this.armR.add(blade);
+                    blade.position.set(0, -6, 1); this.armR.add(blade);
                 } else {
-                    // War Hammer
-                    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 8), new THREE.MeshStandardMaterial({color:0x333333}));
-                    handle.position.set(0, -4, 1); handle.rotation.x = Math.PI/2;
-                    const head = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), new THREE.MeshStandardMaterial({color:0x5500aa}));
-                    head.position.set(0, -8, 1);
-                    this.armR.add(handle, head);
+                    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 8), new THREE.MeshStandardMaterial({color:0x333}));
+                    h.position.set(0, -4, 1); h.rotation.x = Math.PI/2;
+                    const b = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), new THREE.MeshStandardMaterial({color:0x5500aa, emissive: 0x220055}));
+                    b.position.set(0, -8, 1); this.armR.add(h, b);
                 }
 
                 this.mesh.add(this.legL, this.legR, torso, head, eye, this.armL, this.armR);
                 scene.add(this.mesh);
 
-                // Physics
-                this.body = new CANNON.Body({ mass: 500, fixedRotation: true, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 2)) });
+                this.body = new CANNON.Body({ mass: 400, fixedRotation: true, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 2)), material: matBoss });
                 this.body.position.set(0, 10, -40);
+                this.body.linearDamping = 0.0; // We handle velocity manually for Boss 2
                 world.addBody(this.body);
 
-                // UI Update
-                document.getElementById('boss-hud').style.display = 'block';
-                document.getElementById('boss-name').innerText = type === 1 ? "IRON KNIGHT" : "SHADOW STALKER";
-                document.getElementById('boss-name').style.color = type === 1 ? "#ff3333" : "#aa00ff";
+                // UI
+                const hud = document.getElementById('boss-hud');
+                hud.style.display = 'block';
+                document.getElementById('boss-name').innerText = type===1 ? "IRON KNIGHT" : "SHADOW STALKER";
+                document.getElementById('boss-name').style.color = type===1 ? "#ff3333" : "#aa00ff";
                 document.getElementById('boss-bar-fill').style.width = '100%';
             }
 
             update(playerPos, dt) {
-                if (this.isDead) {
+                if(this.isDead) {
                     this.deathTimer += dt;
-                    this.mesh.rotation.x -= dt * 2;
-                    this.mesh.position.y -= dt;
-                    if(this.deathTimer > 3) {
-                        scene.remove(this.mesh);
-                        return true; // Fully removed
-                    }
+                    this.mesh.rotation.x -= dt*2; this.mesh.position.y -= dt;
+                    if(this.deathTimer > 3) { scene.remove(this.mesh); return true; }
                     return false;
                 }
 
                 const dist = this.body.position.distanceTo(playerPos);
-                
-                // --- BOSS 2 SPECIAL MECHANICS ---
-                if (this.type === 2) {
-                    // 1. SMASH ATTACK (Jump high, slam down)
-                    if (dist < 20 && Date.now() > this.nextSmash && !this.isSmashing) {
-                        this.isSmashing = true;
-                        this.body.velocity.y = 60; // Jump Up
-                        
-                        // Slam down after delay
-                        setTimeout(() => {
-                            if(this.isDead) return;
-                            this.body.velocity.y = -100; // Force Down
-                            this.body.velocity.x = 0;
-                            this.body.velocity.z = 0;
-                        }, 800);
 
-                        // Impact Logic check
+                // --- SHADOW STALKER AI (Type 2) ---
+                if(this.type === 2) {
+                    
+                    // 1. SMASH ATTACK
+                    if(dist < 25 && Date.now() > this.nextSmash && !this.isSmashing && !this.isDashing) {
+                        this.isSmashing = true;
+                        this.body.velocity.y = 80; // Super Jump
                         setTimeout(() => {
                             if(this.isDead) return;
-                            if(this.body.position.y < 5) { // If hit ground
-                                addShake(3.0);
-                                spawnParticles(this.body.position, 100, 0xaa00ff);
-                                if(this.body.position.distanceTo(player.body.position) < 25) {
-                                    player.takeDamage(30); // Big AoE damage
-                                }
+                            this.body.velocity.set(0, -150, 0); // SLAM DOWN FAST
+                        }, 600);
+                        
+                        setTimeout(() => {
+                            if(this.isDead) return;
+                            if(this.body.position.y < 5) {
+                                addShake(4.0);
+                                spawnParticles(this.body.position, 80, 0xaa00ff);
+                                if(this.body.position.distanceTo(player.body.position) < 30) player.takeDamage(35);
                                 this.isSmashing = false;
                             }
-                        }, 1200);
-
-                        this.nextSmash = Date.now() + 8000; // Cooldown
+                        }, 900);
+                        this.nextSmash = Date.now() + 5000;
                     }
 
-                    // 2. DASH ATTACK (Extreme speed burst)
-                    if (Date.now() > this.nextDash && !this.isSmashing) {
-                        const chargeDir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
-                        this.body.velocity.x = chargeDir.x * 120; // Super fast dash
-                        this.body.velocity.z = chargeDir.z * 120;
+                    // 2. DASH ATTACK (Velocity Controlled)
+                    if(Date.now() > this.nextDash && !this.isSmashing && !this.isDashing) {
+                        this.isDashing = true;
+                        const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
+                        
+                        // APPLY MASSIVE INSTANT VELOCITY
+                        this.body.velocity.x = dir.x * 150; 
+                        this.body.velocity.z = dir.z * 150;
+                        
                         spawnParticles(this.body.position, 20, 0xaa00ff);
-                        this.nextDash = Date.now() + 4000;
-                        return; // Skip normal movement
+                        
+                        setTimeout(() => { this.isDashing = false; }, 600); // Short burst
+                        this.nextDash = Date.now() + 2500; // Low cooldown
                     }
-                }
 
-                // Normal Movement
-                if (!this.isSmashing) {
-                    let speed = this.type === 1 ? (this.enraged ? 30 : 15) : 35; 
+                    // 3. NORMAL MOVEMENT (When not attacking)
+                    if(!this.isSmashing && !this.isDashing) {
+                        const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
+                        const speed = 40; // High base speed
+                        this.body.velocity.x = dir.x * speed;
+                        this.body.velocity.z = dir.z * speed;
+                    }
+
+                    // 4. TERMINAL VELOCITY / CLAMPING
+                    // This prevents him from flying into space or glitching through walls
+                    const maxVel = this.isDashing ? 160 : 50;
+                    const currentSpeed = Math.sqrt(this.body.velocity.x**2 + this.body.velocity.z**2);
+                    
+                    if(currentSpeed > maxVel) {
+                        const factor = maxVel / currentSpeed;
+                        this.body.velocity.x *= factor;
+                        this.body.velocity.z *= factor;
+                    }
+                    
+                    // VFX for speed
+                    if(this.isDashing || currentSpeed > 30) {
+                        if(Math.random()>0.5) spawnParticles(this.body.position, 1, 0xaa00ff);
+                    }
+
+                } else {
+                    // --- IRON KNIGHT AI (Legacy) ---
+                    const speed = 25;
                     const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
                     this.body.velocity.x = dir.x * speed;
                     this.body.velocity.z = dir.z * speed;
                 }
 
-                // Sync Visuals
+                // SYNC MESH
                 this.mesh.position.copy(this.body.position);
                 this.mesh.position.y -= 6;
                 this.mesh.lookAt(playerPos.x, this.mesh.position.y, playerPos.z);
 
-                // Animations
-                const time = Date.now() * 0.01;
-                this.legL.rotation.x = Math.sin(time) * 0.5;
-                this.legR.rotation.x = Math.sin(time + Math.PI) * 0.5;
+                // ANIMATE LIMBS
+                const t = Date.now() * 0.015;
+                this.legL.rotation.x = Math.sin(t)*0.8;
+                this.legR.rotation.x = Math.sin(t+Math.PI)*0.8;
                 
-                // Swing Weapon
-                if(dist < 8) {
-                    this.armR.rotation.x = -Math.PI/2 + Math.sin(time * 3) * 1.5;
-                    if(Math.random() > 0.95) player.takeDamage(1);
+                if(dist < 10 && !this.isSmashing) {
+                    this.armR.rotation.x = -Math.PI/2 + Math.sin(t*3)*1.5;
+                    if(Math.random()>0.95) player.takeDamage(1);
                 } else {
-                    this.armR.rotation.x = Math.sin(time) * 0.2;
+                    this.armR.rotation.x = Math.sin(t)*0.2;
                 }
 
                 return false;
@@ -459,11 +420,8 @@
             takeDamage(amt) {
                 if(this.isDead) return;
                 this.hp -= amt;
+                document.getElementById('boss-bar-fill').style.width = (this.hp/this.maxHp)*100 + '%';
                 
-                const pct = (this.hp / this.maxHp) * 100;
-                document.getElementById('boss-bar-fill').style.width = pct + '%';
-                
-                // Flash Red
                 this.mesh.children.forEach(c => { if(c.material) c.material.emissive = new THREE.Color(0xff0000); });
                 setTimeout(() => {
                     this.mesh.children.forEach(c => { if(c.material) c.material.emissive = new THREE.Color(0x000000); });
@@ -475,13 +433,8 @@
                     addShake(2.0);
                     spawnParticles(this.mesh.position, 100, 0xffaa00);
                     
-                    if(this.type === 1) {
-                        // START WAVE 2
-                        setTimeout(startWave2, 3000);
-                    } else {
-                        alert("SHADOW STALKER DEFEATED! YOU ARE THE ULTIMATE CHAMPION.");
-                        location.reload();
-                    }
+                    if(this.type === 1) setTimeout(startWave2, 3000);
+                    else { alert("VICTORY! SHADOW STALKER DEFEATED."); location.reload(); }
                 }
             }
         }
@@ -490,105 +443,56 @@
         let currentBoss = null;
         const player = new Player();
 
-        function startWave1() {
-            GAME.wave = 1;
-            currentBoss = new Boss(1);
-        }
-
+        function startWave1() { GAME.wave = 1; currentBoss = new Boss(1); }
         function startWave2() {
             GAME.wave = 2;
             const msg = document.getElementById('wave-msg');
-            msg.style.opacity = 1;
-            setTimeout(() => { msg.style.opacity = 0; }, 3000);
-            
-            // Spawn Boss 2
+            msg.style.opacity = 1; setTimeout(()=>msg.style.opacity=0, 3000);
             currentBoss = new Boss(2);
         }
 
-        // --- MAP ---
-        function createArena() {
-            const gridHelper = new THREE.GridHelper(200, 50, 0x550000, 0x222222);
-            scene.add(gridHelper);
-
-            const floorBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
-            floorBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
-            world.addBody(floorBody);
-
-            const pillGeo = new THREE.BoxGeometry(4, 20, 4);
-            const pillMat = new THREE.MeshStandardMaterial({color: 0x111111});
-            
-            [[ -40,-40], [40,-40], [-40,40], [40,40]].forEach(p => {
-                const mesh = new THREE.Mesh(pillGeo, pillMat);
-                mesh.position.set(p[0], 10, p[1]);
-                scene.add(mesh);
-                const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(2,10,2)) });
-                body.position.set(p[0], 10, p[1]);
-                world.addBody(body);
-            });
-        }
-        createArena();
+        // --- ARENA ---
+        const grid = new THREE.GridHelper(200, 50, 0x550000, 0x222222); scene.add(grid);
+        const floor = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+        floor.quaternion.setFromEuler(-Math.PI/2, 0, 0); world.addBody(floor);
+        const pillGeo = new THREE.BoxGeometry(4, 20, 4); const pillMat = new THREE.MeshStandardMaterial({color: 0x111});
+        [[-40,-40], [40,-40], [-40,40], [40,40]].forEach(p => {
+            const m = new THREE.Mesh(pillGeo, pillMat); m.position.set(p[0], 10, p[1]); scene.add(m);
+            const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(2,10,2)) }); b.position.set(p[0], 10, p[1]); world.addBody(b);
+        });
 
         // --- INPUT ---
         const keys = { w:0, a:0, s:0, d:0, shift:0, space:0 };
-        document.addEventListener('keydown', e => {
-            const k = e.key.toLowerCase();
-            if(keys.hasOwnProperty(k)) keys[k] = true;
-            if(e.code === 'Space') keys.space = true;
-            if(e.key === 'Shift') keys.shift = true;
-        });
-        document.addEventListener('keyup', e => {
-            const k = e.key.toLowerCase();
-            if(keys.hasOwnProperty(k)) keys[k] = false;
-            if(e.code === 'Space') keys.space = false;
-            if(e.key === 'Shift') keys.shift = false;
-        });
-        document.addEventListener('mousedown', () => { if(GAME.active) shoot(); });
+        document.onkeydown = e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; if(e.key==='Shift') keys.shift=true; if(e.code==='Space') keys.space=true; };
+        document.onkeyup = e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; if(e.key==='Shift') keys.shift=false; if(e.code==='Space') keys.space=false; };
+        document.onmousedown = () => { if(GAME.active) shoot(); };
 
-        // --- SHOOTING ---
         const bullets = [];
         function shoot() {
-            addShake(0.2);
-            gunGroup.position.z += 0.3; gunGroup.rotation.x += 0.2;
-
-            const geo = new THREE.SphereGeometry(0.15);
-            const mat = new THREE.MeshBasicMaterial({color: 0xffaa00});
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.copy(camera.position);
-            scene.add(mesh);
-
-            const body = new CANNON.Body({ mass: 0.1, shape: new CANNON.Sphere(0.15) });
-            body.position.copy(camera.position);
-            const dir = new THREE.Vector3();
-            camera.getWorldDirection(dir);
-            body.velocity.set(dir.x * CONFIG.bulletSpeed, dir.y * CONFIG.bulletSpeed, dir.z * CONFIG.bulletSpeed);
-            world.addBody(body);
-
-            bullets.push({ mesh, body, life: 60 });
+            addShake(0.2); gunGroup.position.z += 0.3; gunGroup.rotation.x += 0.2;
+            const m = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({color:0xffaa00}));
+            m.position.copy(camera.position); scene.add(m);
+            const b = new CANNON.Body({ mass: 0.1, shape: new CANNON.Sphere(0.15) });
+            b.position.copy(camera.position);
+            const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+            b.velocity.set(dir.x*CONFIG.bulletSpeed, dir.y*CONFIG.bulletSpeed, dir.z*CONFIG.bulletSpeed);
+            world.addBody(b);
+            bullets.push({mesh:m, body:b, life:60});
         }
 
-        // --- LOOP ---
         const clock = new THREE.Clock();
         const controls = new PointerLockControls(camera, document.body);
-        
-        document.getElementById('play-btn').addEventListener('click', () => {
-            controls.lock();
-            GAME.active = true;
-            document.getElementById('menu').style.display = 'none';
-            startWave1();
-        });
+        document.getElementById('play-btn').onclick = () => { controls.lock(); GAME.active = true; document.getElementById('menu').style.display='none'; startWave1(); };
 
         function animate() {
             requestAnimationFrame(animate);
             if(!GAME.active) return;
-
             const dt = Math.min(clock.getDelta(), 0.1);
             world.step(1/60, dt, 3);
-
             player.update(dt, keys);
             
             if(currentBoss) {
-                const removed = currentBoss.update(player.body.position, dt);
-                if(removed) currentBoss = null;
+                if(currentBoss.update(player.body.position, dt)) currentBoss = null;
             }
 
             gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.6, 0.1);
@@ -598,45 +502,20 @@
                 const b = bullets[i];
                 b.mesh.position.copy(b.body.position);
                 b.life--;
-
-                if(currentBoss && !currentBoss.isDead) {
-                    const dist = b.mesh.position.distanceTo(currentBoss.mesh.position);
-                    if(dist < 5.0) { 
-                        currentBoss.takeDamage(15);
-                        spawnParticles(b.mesh.position, 5, 0xffff00);
-                        scene.remove(b.mesh);
-                        world.removeBody(b.body);
-                        bullets.splice(i, 1);
-                        continue;
-                    }
+                if(currentBoss && !currentBoss.isDead && b.mesh.position.distanceTo(currentBoss.mesh.position) < 5) {
+                    currentBoss.takeDamage(15); spawnParticles(b.mesh.position, 5, 0xffff00);
+                    scene.remove(b.mesh); world.removeBody(b.body); bullets.splice(i,1); continue;
                 }
-
-                if(b.life <= 0 || b.mesh.position.y < 0) {
-                    scene.remove(b.mesh);
-                    world.removeBody(b.body);
-                    bullets.splice(i, 1);
-                }
+                if(b.life<=0 || b.mesh.position.y<0) { scene.remove(b.mesh); world.removeBody(b.body); bullets.splice(i,1); }
             }
-
             for(let i=particles.length-1; i>=0; i--) {
-                const p = particles[i];
-                p.life -= dt;
-                p.mesh.position.addScaledVector(p.vel, dt);
-                p.mesh.scale.setScalar(p.life);
-                if(p.life <= 0) {
-                    scene.remove(p.mesh);
-                    particles.splice(i, 1);
-                }
+                const p = particles[i]; p.life -= dt;
+                p.mesh.position.addScaledVector(p.vel, dt); p.mesh.scale.setScalar(p.life);
+                if(p.life<=0) { scene.remove(p.mesh); particles.splice(i,1); }
             }
             renderer.render(scene, camera);
         }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
+        window.onresize = () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
         animate();
     </script>
 </body>
