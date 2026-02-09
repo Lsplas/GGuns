@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PolyCombat 4.0: Ultimate Inventory</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        
+        /* UI LAYERS */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        /* CROSSHAIR */
+        #crosshair { 
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; 
+            background: white; border: 2px solid black; border-radius: 50%; 
+            transform: translate(-50%, -50%); opacity: 0.8; z-index: 5;
+        }
+
+        /* HUD */
+        #hud-bottom { position: absolute; bottom: 30px; left: 30px; display: flex; gap: 20px; text-shadow: 2px 2px 0 #000; }
+        .hud-text { font-size: 30px; font-weight: 900; color: white; }
+        .hud-label { font-size: 14px; color: #ddd; display: block; }
+        
+        #ammo-box { position: absolute; bottom: 30px; right: 30px; text-align: right; text-shadow: 2px 2px 0 #000; }
+        #weapon-current { font-size: 36px; font-weight: 900; color: #00ffcc; text-transform: uppercase; }
+        
+        /* INVENTORY (PRESS E) */
+        #inventory {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 600px; background: rgba(0, 0, 0, 0.85); border: 4px solid #00ffcc; border-radius: 15px;
+            padding: 20px; pointer-events: auto; z-index: 100;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 15px;
+            box-shadow: 0 0 50px rgba(0, 255, 204, 0.2);
+        }
+        
+        /* Hiding inventory initially via JS, not CSS display:none to allow flex */
+        
+        .inv-slot {
+            width: 120px; height: 120px; background: #222; border: 2px solid #555;
+            border-radius: 10px; cursor: pointer; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .inv-slot:hover { background: #333; border-color: #fff; transform: scale(1.05); }
+        .inv-slot.equipped { border-color: #00ffcc; background: #1a332e; }
+        .inv-icon { font-size: 40px; margin-bottom: 5px; }
+        .inv-name { color: white; font-weight: bold; font-size: 14px; }
+
+        /* INSTRUCTIONS */
+        #controls-hint {
+            position: absolute; top: 20px; left: 20px; color: rgba(255,255,255,0.7); font-weight: bold;
+        }
+        
+        /* START MENU */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; pointer-events: auto;
+        }
+        h1 { font-size: 60px; color: white; text-shadow: 0 5px 15px rgba(0,0,0,0.3); margin: 0; }
+        button#play-btn {
+            background: #00ffcc; color: black; border: none; padding: 20px 50px;
+            font-size: 24px; font-weight: 900; border-radius: 50px; cursor: pointer;
+            margin-top: 30px; box-shadow: 0 10px 20px rgba(0,255,204,0.4);
+            transition: transform 0.2s;
+        }
+        button#play-btn:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <h1>POLY COMBAT 4.0</h1>
+        <p style="color:white; font-size: 20px; opacity: 0.8;">Ultimate Inventory & Sky Upgrade</p>
+        <button id="play-btn">DEPLOY</button>
+    </div>
+
+    <div id="ui-layer">
+        <div id="crosshair"></div>
+        <div id="controls-hint">E: Inventory | G: Grenade | WASD: Move</div>
+        
+        <div id="hud-bottom">
+            <div><span class="hud-label">HEALTH</span><span class="hud-text" style="color:#ff3333">100%</span></div>
+            <div><span class="hud-label">SCORE</span><span class="hud-text" id="score-display">0</span></div>
+        </div>
+
+        <div id="ammo-box">
+            <div id="weapon-current">RIFLE</div>
+            <div style="color:white; font-size: 24px;" id="ammo-display">30/30</div>
+        </div>
+    </div>
+
+    <div id="inventory" style="display: none;">
+        <h2 style="width:100%; text-align:center; color:white; margin-top:0;">CHOOSE WEAPON</h2>
+        </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import * as CANNON from 'cannon-es';
+
+        // --- GAME CONFIG & STATE ---
+        const config = {
+            gravity: -20,
+            playerSpeed: 15,
+            jumpForce: 12
+        };
+
+        const state = {
+            hp: 100,
+            score: 0,
+            ammo: 30,
+            currentWeapon: 'rifle',
+            isInventoryOpen: false,
+            canShoot: true
+        };
+
+        // --- SCENE & SKY ---
+        const scene = new THREE.Scene();
+        // Create a beautiful Gradient Sky
+        const vertexShader = `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+            }`;
+        const fragmentShader = `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec3 topColor = vec3(0.0, 0.4, 0.8); // Deep Blue
+                vec3 bottomColor = vec3(0.6, 0.8, 1.0); // Light Blue/White horizon
+                float h = normalize( vWorldPosition + 100.0 ).y;
+                gl_FragColor = vec4( mix( bottomColor, topColor, max( h, 0.0 ) ), 1.0 );
+            }`;
+        
+        const skyGeo = new THREE.SphereGeometry(400, 32, 15);
+        const skyMat = new THREE.ShaderMaterial({ vertexShader, fragmentShader, side: THREE.BackSide });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+        
+        // Sun Light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; // Crisp shadows
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.left = -50; dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50; dirLight.shadow.camera.bottom = -50;
+        scene.add(dirLight);
+
+        // --- CAMERA & RENDERER ---
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- PHYSICS ---
+        const world = new CANNON.World();
+        world.gravity.set(0, config.gravity, 0);
+        const defaultMat = new CANNON.Material();
+        const contactMat = new CANNON.ContactMaterial(defaultMat, defaultMat, { friction: 0.0, restitution: 0.0 });
+        world.addContactMaterial(contactMat);
+
+        const playerBody = new CANNON.Body({ mass: 5, material: defaultMat, fixedRotation: true });
+        playerBody.addShape(new CANNON.Sphere(1.2));
+        playerBody.position.set(0, 5, 0);
+        playerBody.linearDamping = 0.9;
+        world.addBody(playerBody);
+
+        // --- WEAPON MODELS (Reusable Geometries) ---
+        const weaponPivot = new THREE.Group();
+        camera.add(weaponPivot);
+        scene.add(camera);
+
+        // 1. Rifle
+        const m_rifle = new THREE.Group();
+        m_rifle.add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.8), new THREE.MeshStandardMaterial({color:0x222222})));
+        m_rifle.position.set(0.3, -0.3, -0.5);
+        weaponPivot.add(m_rifle);
+
+        // 2. Shotgun
+        const m_shotgun = new THREE.Group();
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), new THREE.MeshStandardMaterial({color:0x555555}));
+        barrel.rotation.x = Math.PI/2;
+        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.4), new THREE.MeshStandardMaterial({color:0x8B4513}));
+        stock.position.z = 0.4;
+        m_shotgun.add(barrel, stock);
+        m_shotgun.position.set(0.3, -0.3, -0.4);
+        m_shotgun.visible = false;
+        weaponPivot.add(m_shotgun);
+
+        // 3. Sword
+        const m_sword = new THREE.Group();
+        const sBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.5, 0.02), new THREE.MeshStandardMaterial({color:0xdddddd, metalness:0.8, roughness:0.2}));
+        sBlade.position.y = 0.7;
+        const sHilt = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4), new THREE.MeshStandardMaterial({color:0x444444}));
+        m_sword.add(sBlade, sHilt);
+        m_sword.position.set(0.4, -0.4, -0.5);
+        m_sword.rotation.set(0.5, 0, 0);
+        m_sword.visible = false;
+        weaponPivot.add(m_sword);
+
+        // 4. Scythe
+        const m_scythe = new THREE.Group();
+        const scHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.6), new THREE.MeshStandardMaterial({color:0x222222}));
+        const scHead = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.02), new THREE.MeshStandardMaterial({color:0xaa0000}));
+        scHead.position.set(0, 0.7, 0.2);
+        scHead.rotation.z = 0.3;
+        m_scythe.add(scHandle, scHead);
+        m_scythe.position.set(0.4, -0.5, -0.5);
+        m_scythe.rotation.set(0.2, 0, 0);
+        m_scythe.visible = false;
+        weaponPivot.add(m_scythe);
+
+        const weaponModels = { 'rifle': m_rifle, 'shotgun': m_shotgun, 'sword': m_sword, 'scythe': m_scythe };
+
+        // --- INVENTORY SYSTEM ---
+        const inventoryData = [
+            { id: 'rifle', name: 'ASSAULT RIFLE', icon: '🔫', type: 'gun' },
+            { id: 'shotgun', name: 'PUMP SHOTGUN', icon: '🛶', type: 'gun' },
+            { id: 'sword', name: 'KNIGHT SWORD', icon: '🗡️', type: 'melee' },
+            { id: 'scythe', name: 'GRIM SCYTHE', icon: '🧛', type: 'melee' }
+        ];
+
+        const invDiv = document.getElementById('inventory');
+        
+        // Generate Slots
+        inventoryData.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inv-slot';
+            if(item.id === 'rifle') slot.classList.add('equipped');
+            slot.innerHTML = `<div class="inv-icon">${item.icon}</div><div class="inv-name">${item.name}</div>`;
+            slot.onclick = () => equipWeapon(item.id, slot);
+            invDiv.appendChild(slot);
+        });
+
+        function equipWeapon(id, slotElement) {
+            // Visual Update
+            Object.values(weaponModels).forEach(m => m.visible = false);
+            weaponModels[id].visible = true;
+            state.currentWeapon = id;
+
+            // UI Update
+            document.querySelectorAll('.inv-slot').forEach(s => s.classList.remove('equipped'));
+            slotElement.classList.add('equipped');
+            document.getElementById('weapon-current').innerText = id.toUpperCase();
+            
+            // Ammo Logic
+            if(id === 'rifle') state.ammo = 30;
+            else if(id === 'shotgun') state.ammo = 8;
+            else state.ammo = 'INF';
+            
+            updateHUD();
+
+            // Close Inventory
+            toggleInventory(false);
+        }
+
+        function toggleInventory(forceState) {
+            if (forceState === false || (state.isInventoryOpen && forceState === undefined)) {
+                // CLOSE
+                invDiv.style.display = 'none';
+                state.isInventoryOpen = false;
+                controls.lock(); // Go back to game
+            } else {
+                // OPEN
+                invDiv.style.display = 'flex';
+                state.isInventoryOpen = true;
+                controls.unlock(); // Release mouse to click
+            }
+        }
+
+        // --- INPUTS ---
+        const controls = new PointerLockControls(camera, document.body);
+        const keys = { w:0, a:0, s:0, d:0, space:0 };
+        
+        document.getElementById('play-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            controls.lock();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'KeyE') toggleInventory();
+            if(e.code === 'KeyG') throwGrenade();
+            if(e.code === 'KeyR') state.ammo = 30; // Simple reload
+            
+            const k = e.key.toLowerCase();
+            if(k in keys) keys[k] = 1;
+            if(e.code === 'Space') keys.space = 1;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if(k in keys) keys[k] = 0;
+            if(e.code === 'Space') keys.space = 0;
+        });
+
+        document.addEventListener('mousedown', () => {
+            if(state.isInventoryOpen) return;
+            if(!controls.isLocked) controls.lock();
+            else fireWeapon();
+        });
+
+        // --- GAMEPLAY & OPTIMIZED OBJECTS ---
+        // Optimization: Single Geometry reused for all bullets
+        const bulletGeo = new THREE.SphereGeometry(0.15, 8, 8); 
+        const bulletMat = new THREE.MeshBasicMaterial({color: 0xffff00});
+        
+        let bullets = [];
+        let enemies = [];
+        let mapObjects = [];
+
+        function fireWeapon() {
+            if(state.ammo !== 'INF' && state.ammo <= 0) return;
+            if(state.ammo !== 'INF') state.ammo--;
+            updateHUD();
+
+            const isMelee = ['sword', 'scythe'].includes(state.currentWeapon);
+
+            if(isMelee) {
+                // Swing Animation
+                const model = weaponModels[state.currentWeapon];
+                let frame = 0;
+                const anim = setInterval(() => {
+                    frame++;
+                    model.rotation.x += 0.2;
+                    if(frame > 5) model.rotation.x -= 0.4; // Return
+                    if(frame > 10) { clearInterval(anim); model.rotation.x = (state.currentWeapon==='sword'?0.5:0.2); }
+                }, 20);
+                
+                // Melee Hit Detection (Short Range Raycast)
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+                const intersects = raycaster.intersectObjects(enemies.map(e=>e.mesh));
+                if(intersects.length > 0 && intersects[0].distance < 4) {
+                    damageEnemy(intersects[0].object.userData.ref, 50);
+                }
+
+            } else {
+                // Shoot Gun
+                // Recoil
+                weaponPivot.position.z += 0.1;
+                
+                // Create Bullet
+                const mesh = new THREE.Mesh(bulletGeo, bulletMat);
+                mesh.position.copy(camera.position);
+                scene.add(mesh);
+                
+                const body = new CANNON.Body({ mass: 0.1, shape: new CANNON.Sphere(0.15) });
+                body.position.copy(camera.position);
+                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                const force = (state.currentWeapon === 'shotgun') ? 50 : 100;
+                body.velocity.set(dir.x * force, dir.y * force, dir.z * force);
+                world.addBody(body);
+                
+                bullets.push({ mesh, body, life: 60 });
+            }
+        }
+
+        function throwGrenade() {
+            const geo = new THREE.SphereGeometry(0.3);
+            const mat = new THREE.MeshStandardMaterial({color:0x00ff00});
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(camera.position);
+            scene.add(mesh);
+            
+            const body = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(0.3) });
+            body.position.copy(camera.position);
+            const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+            body.velocity.set(dir.x*20, dir.y*20 + 5, dir.z*20);
+            world.addBody(body);
+            
+            // Explosion after 2s
+            setTimeout(() => {
+                createExplosion(body.position);
+                scene.remove(mesh);
+                world.removeBody(body);
+            }, 2000);
+        }
+
+        function createExplosion(pos) {
+            // Visual
+            const expGeo = new THREE.SphereGeometry(2, 8, 8);
+            const expMat = new THREE.MeshBasicMaterial({color: 0xff4400, wireframe:true});
+            const expMesh = new THREE.Mesh(expGeo, expMat);
+            expMesh.position.copy(pos);
+            scene.add(expMesh);
+            setTimeout(()=>scene.remove(expMesh), 200);
+
+            // Damage
+            enemies.forEach(e => {
+                if(pos.distanceTo(e.body.position) < 8) {
+                    damageEnemy(e, 100);
+                    // Blast force
+                    const dir = new THREE.Vector3().subVectors(e.body.position, pos).normalize();
+                    e.body.velocity.set(dir.x*20, 10, dir.z*20);
+                }
+            });
+        }
+
+        function spawnEnemy(x, z) {
+            const group = new THREE.Group();
+            const matBody = new THREE.MeshStandardMaterial({color:0xff0000});
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), matBody);
+            torso.position.y = 0.75;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshStandardMaterial({color:0xffcc00}));
+            head.position.y = 1.8;
+            group.add(torso, head);
+            scene.add(group);
+
+            const body = new CANNON.Body({ mass: 2, shape: new CANNON.Sphere(1) });
+            body.position.set(x, 5, z);
+            body.linearDamping = 0.5; // Prevent sliding forever
+            world.addBody(body);
+
+            const enemyRef = { mesh: group, body: body, hp: 100 };
+            // Link mesh to object for raycasting
+            torso.userData.ref = enemyRef;
+            head.userData.ref = enemyRef;
+            
+            enemies.push(enemyRef);
+        }
+
+        function damageEnemy(e, amt) {
+            e.hp -= amt;
+            if(e.hp <= 0) {
+                // Die
+                state.score += 100;
+                updateHUD();
+                scene.remove(e.mesh);
+                world.removeBody(e.body);
+                enemies = enemies.filter(item => item !== e);
+                // Respawn
+                setTimeout(() => spawnEnemy((Math.random()-0.5)*40, (Math.random()-0.5)*40), 3000);
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('ammo-display').innerText = state.ammo;
+            document.getElementById('score-display').innerText = state.score;
+        }
+
+        // --- MAP BUILDER ---
+        // Create static blocks
+        function createBlock(x, y, z, w, h, d, color) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({color: color}));
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+            const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, h/2, d/2)) });
+            body.position.set(x, y, z);
+            world.addBody(body);
+        }
+
+        // Initialize Map
+        createBlock(0, -1, 0, 100, 2, 100, 0x444444); // Floor
+        createBlock(-10, 1, -10, 4, 2, 4, 0x888888); // Box
+        createBlock(15, 2, 5, 8, 4, 8, 0x888888); // Tall Box
+        createBlock(0, 5, 20, 20, 10, 2, 0x333333); // Wall
+        
+        spawnEnemy(5, 5);
+        spawnEnemy(-10, 10);
+        spawnEnemy(10, -10);
+
+        // --- GAME LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+
+            if(!state.isInventoryOpen && controls.isLocked) {
+                world.step(1/60, dt, 3);
+
+                // Player Move
+                const input = new THREE.Vector3(0,0,0);
+                if(keys.w) input.z -= 1; if(keys.s) input.z += 1;
+                if(keys.a) input.x -= 1; if(keys.d) input.x += 1;
+                input.applyQuaternion(camera.quaternion);
+                input.y = 0; input.normalize();
+                
+                playerBody.velocity.x = input.x * config.playerSpeed;
+                playerBody.velocity.z = input.z * config.playerSpeed;
+                if(keys.space && Math.abs(playerBody.velocity.y) < 0.1) playerBody.velocity.y = config.jumpForce;
+
+                camera.position.copy(playerBody.position);
+
+                // Recoil Return
+                weaponPivot.position.z = THREE.MathUtils.lerp(weaponPivot.position.z, -0.5, 0.1);
+            }
+
+            // Bullet Logic
+            for(let i=bullets.length-1; i>=0; i--) {
+                const b = bullets[i];
+                b.mesh.position.copy(b.body.position);
+                b.life--;
+                
+                // Simple collision check with enemies
+                enemies.forEach(e => {
+                    if(b.mesh.position.distanceTo(e.body.position) < 1.5) {
+                        damageEnemy(e, 25);
+                        b.life = 0;
+                    }
+                });
+
+                if(b.life <= 0) {
+                    scene.remove(b.mesh);
+                    world.removeBody(b.body);
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Enemy AI (Follow player)
+            enemies.forEach(e => {
+                e.mesh.position.copy(e.body.position);
+                e.mesh.position.y -= 1; // Align mesh to feet
+                e.mesh.lookAt(playerBody.position);
+                
+                const dist = e.body.position.distanceTo(playerBody.position);
+                if(dist > 2 && dist < 40) {
+                    const dir = new THREE.Vector3().subVectors(playerBody.position, e.body.position).normalize();
+                    e.body.velocity.x = dir.x * 6;
+                    e.body.velocity.z = dir.z * 6;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
