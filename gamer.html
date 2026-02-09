@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: Fallen Titan</title>
+    <title>PolyCombat: Hyper Titan</title>
     <style>
         body { margin: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         
@@ -320,7 +320,7 @@
                 const torso = new THREE.Mesh(new THREE.BoxGeometry(4, 5, 2.5), ironMat);
                 torso.position.y = 6.5;
 
-                // COOL ADDITION: Energy Core
+                // Energy Core
                 this.core = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.5, 16), glowMat);
                 this.core.rotation.x = Math.PI/2;
                 this.core.position.set(0, 7, 1.3);
@@ -331,7 +331,7 @@
                 eye.position.set(0, 10, 1.0);
                 this.eyeMat = glowMat;
 
-                // COOL ADDITION: Spikes
+                // Spikes
                 const spikeL = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 4), spikeMat);
                 spikeL.position.set(-2, 9, 0); spikeL.rotation.z = 0.5;
                 const spikeR = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 4), spikeMat);
@@ -359,16 +359,11 @@
             }
 
             update(playerPos, dt) {
-                // DEATH ANIMATION LOGIC
+                // DEATH ANIMATION
                 if (this.isDead) {
                     this.deathTimer += dt;
-                    
-                    // Fall backwards
                     this.mesh.rotation.x = Math.max(-Math.PI/2, this.mesh.rotation.x - dt * 2);
-                    // Sink
                     this.mesh.position.y -= dt * 1;
-                    
-                    // Explosions
                     if(Math.random() > 0.8) spawnParticles(this.mesh.position, 10, 0xffaa00);
 
                     if (this.deathTimer > 3.0) {
@@ -379,7 +374,7 @@
                         alert("TITAN FALLEN. YOU WIN!");
                         location.reload();
                     }
-                    return; // Stop moving
+                    return;
                 }
 
                 // Normal Logic
@@ -391,8 +386,10 @@
                     spawnParticles(this.body.position, 50, 0xff0000);
                 }
 
-                // INCREASED SPEED
-                const speed = this.enraged ? 30 : 14; 
+                // --- SPEED UPDATE ---
+                // Normal: 24 (Was 14)
+                // Enraged: 55 (Was 30)
+                const speed = this.enraged ? 55 : 24; 
                 const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
                 
                 this.body.velocity.x = dir.x * speed;
@@ -402,7 +399,7 @@
                 this.mesh.position.y -= 6;
                 this.mesh.lookAt(playerPos.x, this.mesh.position.y, playerPos.z);
 
-                const time = Date.now() * (this.enraged ? 0.015 : 0.008);
+                const time = Date.now() * (this.enraged ? 0.02 : 0.01);
                 this.legL.rotation.x = Math.sin(time) * 0.5;
                 this.legR.rotation.x = Math.sin(time + Math.PI) * 0.5;
                 this.armL.rotation.x = Math.sin(time + Math.PI) * 0.5;
@@ -433,8 +430,8 @@
 
                 if(this.hp <= 0) {
                     this.isDead = true;
-                    world.removeBody(this.body); // Remove physics so we don't collide
-                    addShake(2.0); // Big shake on death
+                    world.removeBody(this.body);
+                    addShake(2.0);
                 }
             }
         }
@@ -544,7 +541,7 @@
                 b.mesh.position.copy(b.body.position);
                 b.life--;
 
-                const dist = b.mesh.position.distanceTo(boss.mesh.position); // Check against Mesh (since physics body removed on death)
+                const dist = b.mesh.position.distanceTo(boss.mesh.position);
                 if(dist < 5.0 && !boss.isDead) { 
                     boss.takeDamage(15);
                     spawnParticles(b.mesh.position, 5, 0xffff00);
