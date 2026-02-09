@@ -2,96 +2,88 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: RPG Edition</title>
+    <title>PolyCombat: Boss Update</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', sans-serif; user-select: none; }
         
         /* UI OVERLAY */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
         /* CROSSHAIR */
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
-            background: cyan; border: 2px solid white; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+            background: #00ff00; border: 2px solid white; border-radius: 50%;
             transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px cyan;
+            box-shadow: 0 0 8px #00ff00;
         }
 
-        /* CURRENCY HUD */
-        #currency-hud {
-            position: absolute; top: 20px; right: 20px;
-            text-align: right;
+        /* HUD */
+        #hud-top {
+            position: absolute; top: 20px; right: 20px; text-align: right;
+            font-weight: bold; font-size: 20px;
         }
-        .currency { font-size: 24px; margin-bottom: 5px; text-shadow: 2px 2px 0 #000; }
-        #gcoins-txt { color: #ffd700; } /* Gold */
-        #ggems-txt { color: #d500f9; } /* Purple */
-
-        /* BOSS HEALTH BAR */
-        #boss-hud {
+        .currency { margin-bottom: 5px; text-shadow: 2px 2px 0 #000; }
+        
+        #hud-bottom {
+            position: absolute; bottom: 20px; left: 20px;
+            font-size: 24px; color: white; font-weight: bold;
+            display: flex; gap: 20px;
+        }
+        
+        /* BOSS BAR */
+        #boss-container {
             position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
-            width: 600px; display: none; /* Hidden until boss spawns */
+            width: 50%; display: none;
         }
-        #boss-name { color: red; font-size: 20px; text-align: center; text-shadow: 0 0 5px red; margin-bottom: 5px; }
+        #boss-label { color: red; text-align: center; font-weight: bold; text-shadow: 0 0 5px red; }
         #boss-bar-bg { width: 100%; height: 20px; background: #330000; border: 2px solid red; }
         #boss-bar-fill { width: 100%; height: 100%; background: red; transition: width 0.1s; }
 
-        /* PLAYER STATUS */
-        #status-bar {
-            position: absolute; bottom: 20px; left: 20px;
-            color: white; font-size: 20px;
-        }
-
-        /* DAMAGE NUMBERS */
-        .dmg-num {
-            position: absolute; color: white; font-weight: bold; font-size: 20px;
-            pointer-events: none; animation: floatUp 1s forwards;
-            text-shadow: 2px 2px 0 #000;
-        }
-        @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        /* DAMAGE FLASH */
+        #red-flash {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: red; opacity: 0; pointer-events: none; transition: opacity 0.1s;
         }
 
         /* START SCREEN */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; pointer-events: auto;
+            background: rgba(10,10,10,0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; pointer-events: auto; z-index: 10;
         }
         .btn {
-            background: linear-gradient(45deg, #ff0000, #ff8800);
-            border: none; padding: 20px 50px; font-size: 30px; color: white; font-weight: bold;
-            cursor: pointer; transform: skewX(-10deg); box-shadow: 0 0 20px #ff0000;
+            background: #ff0044; color: white; padding: 20px 40px; font-size: 24px; font-weight: bold;
+            border: 2px solid white; cursor: pointer; margin-top: 20px;
         }
-        .btn:hover { transform: skewX(-10deg) scale(1.1); }
+        .btn:hover { background: white; color: black; }
 
     </style>
 </head>
 <body>
 
+    <div id="red-flash"></div>
+
     <div id="start-screen">
-        <h1 style="color:white; font-size: 60px;">POLY COMBAT: RPG</h1>
-        <p style="color:#aaa;">WASD to Move | CLICK to Shoot | KILL THE BOSS</p>
-        <button class="btn" id="start-btn">ENTER ARENA</button>
+        <h1 style="color: white; font-size: 50px; margin: 0;">BOSS BATTLE</h1>
+        <p style="color: #ccc;">WASD = Move | ARROWS = Look | CLICK = Shoot</p>
+        <button class="btn" id="start-btn">FIGHT BOSS</button>
     </div>
 
-    <div id="dmg-layer" style="position:absolute; width:100%; height:100%; pointer-events:none;"></div>
-
     <div id="ui-layer">
-        <div id="currency-hud">
-            <div class="currency" id="gcoins-txt">🪙 0 Gcoins</div>
-            <div class="currency" id="ggems-txt">💎 0 GGems</div>
-        </div>
-
-        <div id="boss-hud">
-            <div id="boss-name">MEGA TITAN (LVL 1)</div>
+        <div id="boss-container">
+            <div id="boss-label">BOSS HP</div>
             <div id="boss-bar-bg"><div id="boss-bar-fill"></div></div>
         </div>
 
+        <div id="hud-top">
+            <div class="currency" style="color:gold">🪙 <span id="coins">0</span></div>
+            <div class="currency" style="color:magenta">💎 <span id="gems">0</span></div>
+        </div>
+
         <div id="crosshair"></div>
-        
-        <div id="status-bar">
-            ❤️ HEALTH: 100 | 🔫 AMMO: ∞
+
+        <div id="hud-bottom">
+            <div style="color: #ff3333">❤️ <span id="hp">100</span></div>
         </div>
     </div>
 
@@ -110,18 +102,18 @@
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import * as CANNON from 'cannon-es';
 
-        // --- GAME STATE ---
+        // --- GAME CONFIG ---
         const GAME = {
             active: false,
-            gCoins: 0,
-            gGems: 0,
+            coins: 0, gems: 0,
+            hp: 100,
             bossLevel: 1
         };
 
-        // --- SCENE SETUP ---
+        // --- SCENE ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
-        scene.fog = new THREE.Fog(0x111111, 10, 80);
+        scene.background = new THREE.Color(0x222222);
+        scene.fog = new THREE.Fog(0x222222, 10, 60);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -129,290 +121,334 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(20, 40, 20);
-        dirLight.castShadow = true;
-        scene.add(dirLight);
+        // Light
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(10, 50, 20);
+        light.castShadow = true;
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-        // Physics World
+        // Physics
         const world = new CANNON.World();
-        world.gravity.set(0, -30, 0);
+        world.gravity.set(0, -40, 0); // Snappy gravity
         
-        // Materials
-        const groundMat = new CANNON.Material();
-        const playerMat = new CANNON.Material();
-        const physicsContact = new CANNON.ContactMaterial(groundMat, playerMat, { friction: 0.0, restitution: 0.0 });
-        world.addContactMaterial(physicsContact);
+        const mat = new CANNON.Material();
+        const contact = new CANNON.ContactMaterial(mat, mat, { friction: 0.0, restitution: 0.0 });
+        world.addContactMaterial(contact);
 
         // --- PLAYER ---
         const playerBody = new CANNON.Body({
             mass: 5, shape: new CANNON.Sphere(1.5),
-            material: playerMat, fixedRotation: true
+            material: mat, fixedRotation: true
         });
         playerBody.position.set(0, 5, 20);
         playerBody.linearDamping = 0.9;
         world.addBody(playerBody);
 
-        // Weapon
-        const gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.6), new THREE.MeshStandardMaterial({color: 0x00ffff}));
-        gunMesh.position.set(0.5, -0.4, -0.8);
-        camera.add(gunMesh);
+        // --- COOL GUN MODEL ---
+        const gunGroup = new THREE.Group();
+        
+        // 1. Main Body
+        const bodyGeo = new THREE.BoxGeometry(0.15, 0.2, 0.6);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+        gunGroup.add(bodyMesh);
+
+        // 2. Barrel
+        const barrelGeo = new THREE.BoxGeometry(0.05, 0.05, 0.6);
+        const barrelMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+        barrel.position.set(0, 0.05, -0.6);
+        gunGroup.add(barrel);
+
+        // 3. Magazine
+        const magGeo = new THREE.BoxGeometry(0.08, 0.3, 0.15);
+        const mag = new THREE.Mesh(magGeo, bodyMat);
+        mag.position.set(0, -0.2, -0.1);
+        gunGroup.add(mag);
+
+        // 4. Scope
+        const scopeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.2);
+        const scope = new THREE.Mesh(scopeGeo, new THREE.MeshStandardMaterial({color: 0x000000}));
+        scope.position.set(0, 0.15, -0.1);
+        gunGroup.add(scope);
+
+        gunGroup.position.set(0.4, -0.3, -0.5);
+        camera.add(gunGroup);
         scene.add(camera);
 
-        // --- ENTITIES SYSTEM ---
+        // --- ENTITY MANAGER ---
         const enemies = [];
         
-        class Entity {
-            constructor(x, y, z, width, height, color, hp, name, isBoss = false) {
-                this.maxHp = hp;
-                this.hp = hp;
-                this.isBoss = isBoss;
-                this.name = name;
+        class Boss {
+            constructor() {
+                this.maxHp = 1500 * GAME.bossLevel;
+                this.hp = this.maxHp;
+                this.lastAttack = 0;
 
-                // Visual
-                const geo = new THREE.BoxGeometry(width, height, width);
-                const mat = new THREE.MeshStandardMaterial({ color: color });
+                // Visuals
+                const geo = new THREE.BoxGeometry(4, 8, 4);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
                 this.mesh = new THREE.Mesh(geo, mat);
-                this.mesh.position.set(x, y, z);
+                this.mesh.position.set(0, 5, -30);
                 this.mesh.castShadow = true;
                 scene.add(this.mesh);
 
                 // Physics
                 this.body = new CANNON.Body({
-                    mass: isBoss ? 50 : 5, // Boss is heavy
-                    shape: new CANNON.Box(new CANNON.Vec3(width/2, height/2, width/2)),
-                    material: groundMat
+                    mass: 50,
+                    shape: new CANNON.Box(new CANNON.Vec3(2, 4, 2)),
+                    material: mat,
+                    fixedRotation: true
                 });
-                this.body.position.set(x, y, z);
+                this.body.position.set(0, 5, -30);
                 world.addBody(this.body);
 
-                enemies.push(this);
+                // UI
+                document.getElementById('boss-container').style.display = 'block';
+                this.updateUI();
             }
 
-            takeDamage(amount) {
-                this.hp -= amount;
+            update(playerPos, dt) {
+                // 1. Chase Player
+                const dir = new THREE.Vector3().subVectors(playerPos, this.body.position);
+                dir.y = 0; // Don't fly
+                dir.normalize();
                 
-                // Flash White
-                this.mesh.material.emissive.setHex(0xffffff);
+                const speed = 8 + (GAME.bossLevel); // Gets faster
+                this.body.velocity.x = dir.x * speed;
+                this.body.velocity.z = dir.z * speed;
+                
+                // Sync Mesh
+                this.mesh.position.copy(this.body.position);
+                this.mesh.lookAt(playerPos);
+
+                // 2. Attack Player
+                const dist = this.body.position.distanceTo(playerPos);
+                if (dist < 4.0 && Date.now() - this.lastAttack > 1000) {
+                    this.lastAttack = Date.now();
+                    takeDamage(15);
+                    // Push player back
+                    playerBody.velocity.x += dir.x * 30;
+                    playerBody.velocity.z += dir.z * 30;
+                }
+            }
+
+            takeDamage(amt) {
+                this.hp -= amt;
+                this.mesh.material.emissive.setHex(0xffaaaa);
                 setTimeout(() => this.mesh.material.emissive.setHex(0x000000), 50);
+                this.updateUI();
 
-                // Update Boss UI
-                if(this.isBoss) {
-                    const pct = Math.max(0, (this.hp / this.maxHp) * 100);
-                    document.getElementById('boss-bar-fill').style.width = pct + "%";
-                }
-
-                // Show Damage Number (Visual HTML overlay)
-                showDamageNumber(amount, this.mesh.position);
-
-                if(this.hp <= 0) this.die();
-            }
-
-            die() {
-                // Remove visuals/physics
-                scene.remove(this.mesh);
-                world.removeBody(this.body);
-                
-                // Remove from list
-                const idx = enemies.indexOf(this);
-                if(idx > -1) enemies.splice(idx, 1);
-
-                // Rewards
-                if(this.isBoss) {
-                    GAME.gCoins += 1000;
-                    GAME.gGems += 500;
-                    updateEconomy();
-                    alert("BOSS DEFEATED! +1000 Gcoins | +500 GGems");
+                if(this.hp <= 0) {
+                    scene.remove(this.mesh);
+                    world.removeBody(this.body);
+                    enemies.splice(0, 1);
                     
-                    document.getElementById('boss-hud').style.display = 'none';
+                    GAME.coins += 1000;
+                    GAME.gems += 500;
+                    updateHUD();
+                    alert("BOSS DEFEATED! +1000 Coins");
                     
-                    // Respawn Boss Stronger
                     GAME.bossLevel++;
-                    setTimeout(() => spawnBoss(), 3000);
-                } else {
-                    // Dummy Reward
-                    GAME.gCoins += 10;
-                    updateEconomy();
-                    // Respawn Dummy
-                    setTimeout(() => new Entity(this.body.position.x, 3, this.body.position.z, 2, 4, 0x00ff00, 500, "Dummy"), 2000);
+                    setTimeout(() => enemies.push(new Boss()), 3000);
                 }
+            }
+
+            updateUI() {
+                const pct = (this.hp / this.maxHp) * 100;
+                document.getElementById('boss-bar-fill').style.width = pct + '%';
             }
         }
 
-        // --- SPAWNERS ---
-        
-        // 1. Map Floors
-        function createBox(w, h, d, x, y, z, col) {
-            const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:col}));
-            m.position.set(x,y,z); scene.add(m);
-            const b = new CANNON.Body({mass:0, shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2))});
-            b.position.set(x,y,z); world.addBody(b);
+        // --- MAP ---
+        function createFloor(w, d) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({color: 0x444444}));
+            m.position.y = -0.5;
+            scene.add(m);
+            const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, 0.5, d/2)) });
+            b.position.y = -0.5;
+            world.addBody(b);
         }
-        createBox(100, 2, 100, 0, -1, 0, 0x222222); // Main Floor
+        createFloor(100, 100);
 
-        // 2. Training Dummies (Left Side)
-        new Entity(-20, 3, 0, 3, 5, 0x00ff00, 500, "Dummy");
-        new Entity(-20, 3, 10, 3, 5, 0x00ff00, 500, "Dummy");
-        new Entity(-20, 3, -10, 3, 5, 0x00ff00, 500, "Dummy");
-
-        // 3. Boss Spawner
-        function spawnBoss() {
-            const hp = 1500 * GAME.bossLevel;
-            const boss = new Entity(0, 8, -30, 6, 12, 0xff0000, hp, "Boss", true);
-            
-            // Show UI
-            document.getElementById('boss-hud').style.display = 'block';
-            document.getElementById('boss-name').innerText = `MEGA TITAN (LVL ${GAME.bossLevel})`;
-            document.getElementById('boss-bar-fill').style.width = '100%';
+        // Add Dummies
+        function createDummy(x, z) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshStandardMaterial({color: 0x00ff00}));
+            m.position.set(x, 2, z);
+            scene.add(m);
+            const b = new CANNON.Body({ mass: 5, shape: new CANNON.Box(new CANNON.Vec3(1,2,1)) });
+            b.position.set(x, 2, z);
+            world.addBody(b);
+            return { mesh: m, body: b, hp: 500 };
         }
-        spawnBoss();
+        const dummies = [createDummy(-20, 0), createDummy(-25, 5)];
 
         // --- CONTROLS ---
         const controls = new PointerLockControls(camera, document.body);
-        const keys = { w:0, a:0, s:0, d:0, sp:0, sh:0 };
+        const keys = { w:0, a:0, s:0, d:0, up:0, down:0, left:0, right:0, sp:0 };
 
         document.getElementById('start-btn').addEventListener('click', () => {
             controls.lock();
             document.getElementById('start-screen').style.display = 'none';
             GAME.active = true;
+            enemies.push(new Boss());
         });
 
         document.addEventListener('keydown', e => {
-            if(e.key === 'w') keys.w = 1;
-            if(e.key === 's') keys.s = 1;
-            if(e.key === 'a') keys.a = 1;
-            if(e.key === 'd') keys.d = 1;
-            if(e.code === 'Space') keys.sp = 1;
-            if(e.key === 'Shift') keys.sh = 1;
+            switch(e.key.toLowerCase()) {
+                case 'w': keys.w = 1; break;
+                case 's': keys.s = 1; break;
+                case 'a': keys.a = 1; break;
+                case 'd': keys.d = 1; break;
+                case ' ': keys.sp = 1; break;
+                case 'arrowup': keys.up = 1; break;
+                case 'arrowdown': keys.down = 1; break;
+                case 'arrowleft': keys.left = 1; break;
+                case 'arrowright': keys.right = 1; break;
+            }
         });
         document.addEventListener('keyup', e => {
-            if(e.key === 'w') keys.w = 0;
-            if(e.key === 's') keys.s = 0;
-            if(e.key === 'a') keys.a = 0;
-            if(e.key === 'd') keys.d = 0;
-            if(e.code === 'Space') keys.sp = 0;
-            if(e.key === 'Shift') keys.sh = 0;
+            switch(e.key.toLowerCase()) {
+                case 'w': keys.w = 0; break;
+                case 's': keys.s = 0; break;
+                case 'a': keys.a = 0; break;
+                case 'd': keys.d = 0; break;
+                case ' ': keys.sp = 0; break;
+                case 'arrowup': keys.up = 0; break;
+                case 'arrowdown': keys.down = 0; break;
+                case 'arrowleft': keys.left = 0; break;
+                case 'arrowright': keys.right = 0; break;
+            }
         });
-        document.addEventListener('mousedown', () => {
-            if(GAME.active) shoot();
-        });
+        document.addEventListener('mousedown', () => { if(GAME.active) shoot(); });
 
         // --- SHOOTING ---
         const bullets = [];
         function shoot() {
-            // Recoil
-            gunMesh.position.z = -0.4;
-            setTimeout(() => gunMesh.position.z = -0.8, 100);
+            // Visual Recoil
+            gunGroup.position.z = -0.3;
+            gunGroup.rotation.x = 0.2;
 
-            // Create Projectile
-            const geo = new THREE.SphereGeometry(0.3);
-            const mat = new THREE.MeshBasicMaterial({color: 0x00ffff});
+            const geo = new THREE.SphereGeometry(0.2);
+            const mat = new THREE.MeshBasicMaterial({color: 0xffff00});
             const mesh = new THREE.Mesh(geo, mat);
             mesh.position.copy(camera.position);
-            
-            // Physics
-            const body = new CANNON.Body({mass: 0.2, shape: new CANNON.Sphere(0.3)});
+            scene.add(mesh);
+
+            const body = new CANNON.Body({ mass: 0.1, shape: new CANNON.Sphere(0.2) });
             body.position.copy(camera.position);
             
             const dir = new THREE.Vector3();
             camera.getWorldDirection(dir);
-            const speed = 80;
-            body.velocity.set(dir.x*speed, dir.y*speed, dir.z*speed);
-            
-            scene.add(mesh);
+            body.velocity.set(dir.x * 100, dir.y * 100, dir.z * 100);
             world.addBody(body);
-            bullets.push({mesh, body, life: 100});
+
+            bullets.push({ mesh, body, life: 60 });
         }
 
-        // --- HELPERS ---
-        function showDamageNumber(dmg, pos) {
-            // Convert 3D pos to 2D screen pos
-            const tempV = pos.clone();
-            tempV.project(camera);
+        function takeDamage(amt) {
+            GAME.hp -= amt;
+            document.getElementById('hp').innerText = GAME.hp;
+            document.getElementById('red-flash').style.opacity = 0.6;
+            setTimeout(() => document.getElementById('red-flash').style.opacity = 0, 100);
             
-            const x = (tempV.x * .5 + .5) * window.innerWidth;
-            const y = (tempV.y * -.5 + .5) * window.innerHeight;
-
-            const div = document.createElement('div');
-            div.className = 'dmg-num';
-            div.innerText = "-" + dmg;
-            div.style.left = x + 'px';
-            div.style.top = y + 'px';
-            document.getElementById('dmg-layer').appendChild(div);
-            
-            setTimeout(() => div.remove(), 1000);
+            if(GAME.hp <= 0) {
+                alert("YOU DIED. COINS: " + GAME.coins);
+                location.reload();
+            }
         }
 
-        function updateEconomy() {
-            document.getElementById('gcoins-txt').innerText = `🪙 ${GAME.gCoins} Gcoins`;
-            document.getElementById('ggems-txt').innerText = `💎 ${GAME.gGems} GGems`;
+        function updateHUD() {
+            document.getElementById('coins').innerText = GAME.coins;
+            document.getElementById('gems').innerText = GAME.gems;
         }
 
-        // --- LOOP ---
+        // --- GAME LOOP ---
         const clock = new THREE.Clock();
+        
         function animate() {
             requestAnimationFrame(animate);
             if(!GAME.active) return;
-            
+
             const dt = Math.min(clock.getDelta(), 0.1);
             world.step(1/60, dt, 3);
 
-            // 1. Movement
-            const yaw = new THREE.Euler(0, 0, 0, 'YXZ');
-            yaw.setFromQuaternion(camera.quaternion);
+            // 1. MOVEMENT & LOOK
+            // Arrow Key Looking (Manual Rotation)
+            const lookSpeed = 2.0 * dt;
+            if(keys.left) camera.rotation.y += lookSpeed;
+            if(keys.right) camera.rotation.y -= lookSpeed;
+            if(keys.up) camera.rotation.x += lookSpeed;
+            if(keys.down) camera.rotation.x -= lookSpeed;
+
+            // Movement Physics
+            const yaw = camera.rotation.y; // Standard ThreeJS rotation
+            // NOTE: When using PointerLockControls, we usually get yaw from camera.
+            // But if using arrows, we are modifying camera rotation directly.
             
             const input = new THREE.Vector3(0,0,0);
             if(keys.w) input.z -= 1;
             if(keys.s) input.z += 1;
             if(keys.a) input.x -= 1;
             if(keys.d) input.x += 1;
-            input.applyAxisAngle(new THREE.Vector3(0,1,0), yaw.y);
-            
-            const speed = keys.sh ? 20 : 10;
+
+            // Rotate input by Camera Yaw
+            input.applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y); 
+
+            // High Speed (25)
+            const speed = 25; 
             playerBody.velocity.x = input.x * speed;
             playerBody.velocity.z = input.z * speed;
-            
+
             if(keys.sp && Math.abs(playerBody.velocity.y) < 0.1) {
                 playerBody.velocity.y = 15;
             }
 
-            camera.position.copy(playerBody.position).add(new THREE.Vector3(0, 1.2, 0));
+            // Sync Camera
+            camera.position.copy(playerBody.position).add(new THREE.Vector3(0, 1.5, 0));
 
-            // 2. Entities
-            enemies.forEach(e => {
-                e.mesh.position.copy(e.body.position);
-                e.mesh.quaternion.copy(e.body.quaternion);
-                
-                // Simple Boss AI: Move towards player slowly
-                if(e.isBoss) {
-                    const toPlayer = new THREE.Vector3().subVectors(playerBody.position, e.body.position);
-                    toPlayer.y = 0; // Don't fly
-                    toPlayer.normalize();
-                    e.body.velocity.x = toPlayer.x * 3;
-                    e.body.velocity.z = toPlayer.z * 3;
-                    e.mesh.lookAt(playerBody.position);
+            // Gun Recoil Recovery
+            gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.5, 0.1);
+            gunGroup.rotation.x = THREE.MathUtils.lerp(gunGroup.rotation.x, 0, 0.1);
+
+            // 2. BOSS LOGIC
+            enemies.forEach(boss => boss.update(playerBody.position, dt));
+
+            // 3. DUMMY LOGIC
+            dummies.forEach((d, i) => {
+                d.mesh.position.copy(d.body.position);
+                if(d.hp <= 0 && d.mesh.parent) {
+                     scene.remove(d.mesh); world.removeBody(d.body);
+                     GAME.coins += 10; updateHUD();
                 }
             });
 
-            // 3. Bullets
+            // 4. BULLETS
             for(let i=bullets.length-1; i>=0; i--) {
                 const b = bullets[i];
                 b.mesh.position.copy(b.body.position);
                 b.life--;
 
-                // Collision
-                let hit = false;
-                enemies.forEach(e => {
-                    if(b.mesh.position.distanceTo(e.mesh.position) < 4) { // Hitbox size
-                        e.takeDamage(25); // Bullet Damage
-                        hit = true;
+                // Collision Check Boss
+                enemies.forEach(boss => {
+                    if(b.mesh.position.distanceTo(boss.mesh.position) < 4) {
+                        boss.takeDamage(20);
+                        b.life = 0;
                     }
                 });
 
-                if(b.life <= 0 || hit) {
+                // Collision Check Dummies
+                dummies.forEach(d => {
+                    if(b.mesh.position.distanceTo(d.mesh.position) < 2) {
+                        d.hp -= 20;
+                        d.mesh.material.color.setHex(0xffffff);
+                        setTimeout(() => { if(d.mesh) d.mesh.material.color.setHex(0x00ff00); }, 50);
+                        b.life = 0;
+                    }
+                });
+
+                if(b.life <= 0) {
                     scene.remove(b.mesh);
                     world.removeBody(b.body);
                     bullets.splice(i, 1);
