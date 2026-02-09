@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: Neon Nightmare</title>
+    <title>PolyCombat: Neon Light</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #110022; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         
         /* UI LAYERS */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -137,9 +137,11 @@
 
         // --- SCENE & SKY ---
         const scene = new THREE.Scene();
-        // New Purple Sky
-        scene.background = new THREE.Color(0x1a002e); 
-        scene.fog = new THREE.FogExp2(0x1a002e, 0.015);
+        
+        // --- CHANGED: BRIGHT NEON PURPLE SKY ---
+        const skyColor = 0x8800ff; // Bright Violet/Purple
+        scene.background = new THREE.Color(skyColor); 
+        scene.fog = new THREE.FogExp2(skyColor, 0.015);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -148,16 +150,14 @@
         document.body.appendChild(renderer.domElement);
 
         // --- LIGHTING ---
-        const ambient = new THREE.AmbientLight(0xffffff, 0.2);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4); // Slightly brighter ambient for the light sky
         scene.add(ambient);
 
-        // Pink Sun for "Shiny" effect
-        const sun = new THREE.DirectionalLight(0xff00ff, 1.2); 
+        const sun = new THREE.DirectionalLight(0xffccff, 1.0); // Whitish-Pink Sun
         sun.position.set(20, 50, 20);
         sun.castShadow = true;
         scene.add(sun);
 
-        // Backlight
         const rimLight = new THREE.DirectionalLight(0x00ffff, 0.5);
         rimLight.position.set(-20, 20, -20);
         scene.add(rimLight);
@@ -285,7 +285,7 @@
                 this.mesh = new THREE.Group();
                 const col = type === 1 ? 0x888899 : 0x050505;
                 const glow = type === 1 ? 0x00ffff : 0xaa00ff;
-                const mat = new THREE.MeshStandardMaterial({ color: col, metalness: 0.9, roughness: 0.1 }); // Shiny Metal
+                const mat = new THREE.MeshStandardMaterial({ color: col, metalness: 0.9, roughness: 0.1 });
                 this.glowMat = new THREE.MeshBasicMaterial({ color: glow });
 
                 const leg = new THREE.BoxGeometry(1.5, 4, 1.5);
@@ -338,7 +338,7 @@
 
                 // --- SHADOW STALKER AI (Type 2) ---
                 if(this.type === 2) {
-                    // Smash & Dash
+                    // Smash & Dash logic
                     if(dist < 25 && Date.now() > this.nextSmash && !this.isSmashing && !this.isDashing) {
                         this.isSmashing = true;
                         this.body.velocity.y = 80;
@@ -365,23 +365,19 @@
                         const speed = 40;
                         this.body.velocity.x = dir.x * speed; this.body.velocity.z = dir.z * speed;
                     }
-                    // Terminal Velocity
                     const maxVel = this.isDashing ? 160 : 50;
                     const s = Math.sqrt(this.body.velocity.x**2 + this.body.velocity.z**2);
                     if(s > maxVel) { const f = maxVel/s; this.body.velocity.x*=f; this.body.velocity.z*=f; }
 
                 } else {
                     // --- IRON KNIGHT AI (FAST) ---
-                    // Enraged: < 50% HP = Speed goes from 40 to 70
                     const enraged = this.hp < this.maxHp * 0.5;
                     if(enraged) {
-                        this.glowMat.color.setHex(0xff0000); // Red Eyes
+                        this.glowMat.color.setHex(0xff0000); 
                         if(Math.random()>0.9) spawnParticles(this.body.position, 1, 0xff0000);
                     }
-
-                    const speed = enraged ? 70 : 40; // MUCH FASTER
+                    const speed = enraged ? 70 : 40; 
                     const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
-                    
                     this.body.velocity.x = dir.x * speed;
                     this.body.velocity.z = dir.z * speed;
                 }
@@ -438,7 +434,7 @@
         }
 
         // --- ARENA ---
-        const grid = new THREE.GridHelper(200, 50, 0xaa00ff, 0x220044); scene.add(grid); // Purple Grid
+        const grid = new THREE.GridHelper(200, 50, 0xaa00ff, 0x220044); scene.add(grid); 
         const floor = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
         floor.quaternion.setFromEuler(-Math.PI/2, 0, 0); world.addBody(floor);
         const pillGeo = new THREE.BoxGeometry(4, 20, 4); const pillMat = new THREE.MeshStandardMaterial({color: 0x110022});
