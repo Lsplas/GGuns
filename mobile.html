@@ -2,119 +2,94 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DOORS: GRAND LIBRARY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ultimate Obby v9: High Fidelity</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
         /* UI OVERLAY */
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        
-        /* HUD */
-        #hud-top { 
-            display: flex; justify-content: space-between; padding: 20px; 
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-        }
-        .hud-box { color: white; font-weight: bold; text-shadow: 0 0 5px black; }
-        #items-count { font-size: 30px; color: #00ffaa; }
-        #status-msg { font-size: 24px; color: red; opacity: 0; transition: opacity 0.2s; }
-
-        /* CENTER */
-        #center-screen {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            display: flex; flex-direction: column; align-items: center;
-        }
-        #crosshair { width: 8px; height: 8px; background: rgba(255,255,255,0.8); border-radius: 50%; box-shadow: 0 0 4px white; }
-        #interact-text { 
-            margin-top: 20px; color: white; background: rgba(0,0,0,0.7); 
-            padding: 5px 10px; border-radius: 4px; opacity: 0; 
-            font-size: 18px; border: 1px solid #aaa;
-        }
-
-        /* BOTTOM */
-        #controls-hint {
-            position: absolute; bottom: 20px; left: 20px; color: #888; font-size: 14px;
-        }
-        #posture-icon {
-            position: absolute; bottom: 20px; right: 20px; font-size: 50px; 
-            filter: drop-shadow(0 0 5px black); transition: transform 0.2s;
-        }
-
-        /* MENUS */
-        #start-screen, #death-screen, #win-screen {
+        #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #050505; z-index: 100;
+            background: rgba(5, 5, 10, 0.9); color: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            color: white; text-align: center;
+            z-index: 100; cursor: pointer; backdrop-filter: blur(10px); transition: opacity 0.5s;
         }
-        #death-screen { background: #300; display: none; }
-        #win-screen { background: #002211; display: none; }
         
-        h1 { font-size: 60px; margin: 0 0 20px 0; color: #e67e22; text-shadow: 0 0 20px orange; }
-        p { font-size: 18px; color: #ccc; max-width: 600px; line-height: 1.5; margin-bottom: 30px; }
-        button {
-            padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer;
-            background: #e67e22; border: none; border-radius: 5px; color: black;
+        #hud {
+            position: absolute; top: 20px; left: 20px; pointer-events: none;
+            display: flex; gap: 20px;
         }
-        button:hover { background: white; }
+        .stat-box {
+            background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 8px;
+            border-left: 4px solid #3b82f6; color: white; font-weight: bold; font-size: 18px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
 
-        /* JUMPSCARE */
-        #jumpscare-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: black; z-index: 200; display: none;
-            align-items: center; justify-content: center;
+        /* DYNAMIC CROSSHAIR */
+        #crosshair-wrapper {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            pointer-events: none;
         }
-        #scare-img {
-            width: 100%; height: 100%; object-fit: cover;
-            animation: shake 0.05s infinite;
+        #crosshair {
+            width: 24px; height: 24px; border: 2px solid rgba(255, 255, 255, 0.9);
+            border-radius: 50%; transition: transform 0.1s; box-shadow: 0 0 4px white;
         }
-        @keyframes shake { 0% { transform: translate(5px, 5px); } 50% { transform: translate(-5px, -5px); } 100% { transform: translate(0,0); } }
+        #dot {
+            position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+            background: white; transform: translate(-50%, -50%); border-radius: 50%;
+        }
 
+        /* AMMO */
+        #ammo-box {
+            position: absolute; bottom: 30px; right: 30px; 
+            text-align: right; color: white; font-family: monospace;
+        }
+        #ammo-count { font-size: 48px; font-weight: bold; color: #fbbf24; text-shadow: 0 0 15px #fbbf24; }
+        #ammo-label { font-size: 14px; opacity: 0.7; letter-spacing: 2px; }
+
+        /* KEY HINTS */
+        .keys {
+            display: flex; gap: 10px; margin-top: 20px;
+        }
+        .key {
+            border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 4px;
+            font-size: 12px; color: #aaa;
+        }
     </style>
 </head>
 <body>
 
     <div id="start-screen">
-        <h1>DOOR 100: EXPANDED</h1>
-        <p>1. Crouch (<b>C</b>) to stay quiet.<br>
-           2. If you <b>RUN</b>, the Figure will hear you.<br>
-           3. Collect <b>10 Breakers</b> to power the exit.<br>
-           4. Avoid the Figure.</p>
-        <button id="btn-start">ENTER ROOM</button>
-    </div>
-
-    <div id="death-screen">
-        <h1 style="color:red">YOU DIED</h1>
-        <p>The Figure heard you running.</p>
-        <button onclick="location.reload()">TRY AGAIN</button>
-    </div>
-
-    <div id="win-screen">
-        <h1 style="color:#00ffaa">ESCAPED!</h1>
-        <p>You restored the power and unlocked the door.</p>
-        <button onclick="location.reload()">PLAY AGAIN</button>
-    </div>
-
-    <div id="jumpscare-overlay">
-        <img id="scare-img" src="https://media.tenor.com/2Xy3l5sA1eAAAAAC/roblox-doors.gif" onerror="this.style.display='none'; document.getElementById('jumpscare-overlay').style.backgroundColor='red'">
-    </div>
-
-    <div id="ui">
-        <div id="hud-top">
-            <div class="hud-box">BREAKERS: <span id="items-count">0 / 10</span></div>
-            <div class="hud-box" id="status-msg">⚠ LOUD NOISE DETECTED ⚠</div>
+        <h1 style="font-size: 60px; margin: 0; color: #3b82f6; text-shadow: 0 0 30px #3b82f6;">SKY BOUND</h1>
+        <p style="color: #94a3b8; font-size: 18px; margin-top: 10px;">HIGH FIDELITY UPDATE</p>
+        <div class="keys">
+            <div class="key">WASD Move</div>
+            <div class="key">SPACE Jump</div>
+            <div class="key">CLICK Shoot</div>
         </div>
-        <div id="center-screen">
-            <div id="crosshair"></div>
-            <div id="interact-text">[E] PICK UP</div>
-        </div>
-        <div id="controls-hint">[WASD] Move &nbsp; [C] Crouch &nbsp; [E] Interact</div>
-        <div id="posture-icon">🏃</div>
+        <p style="margin-top: 40px; opacity: 0.5; font-size: 14px;">(Click to Start)</p>
+    </div>
+
+    <div id="hud">
+        <div class="stat-box" style="border-color: #3b82f6;">LEVEL <span id="level-txt">1</span></div>
+        <div class="stat-box" style="border-color: #ef4444;">DEATHS <span id="death-txt">0</span></div>
+    </div>
+
+    <div id="crosshair-wrapper">
+        <div id="crosshair"></div>
+        <div id="dot"></div>
+    </div>
+
+    <div id="ammo-box">
+        <div id="ammo-count">∞</div>
+        <div id="ammo-label">PLASMA</div>
     </div>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
@@ -122,394 +97,343 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. GAME VARIABLES ---
-        let camera, scene, renderer;
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let canJump = false;
-        let isCrouching = false;
-        let isDead = false;
-        let fusesFound = 0;
-        
-        // Physics/Movement
-        let velocity = new THREE.Vector3();
-        let direction = new THREE.Vector3();
-        const speedRun = 80.0;
-        const speedCrouch = 25.0;
-        
-        // Entities
-        const interactables = [];
-        const obstacles = [];
-        let figureGroup;
-        let figureTarget = new THREE.Vector3();
-        let figureState = 'PATROL'; // PATROL, CHASE
-        let figureSpeed = 4.0;
-        
-        // --- 2. SETUP SCENE ---
-        init();
-        animate();
+        // --- 1. HIGH QUALITY SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111827); // Deep Space Blue
+        scene.fog = new THREE.FogExp2(0x111827, 0.02);
 
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050505);
-            scene.fog = new THREE.Fog(0x050505, 0, 50);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer, realistic shadows
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; // Cinema visuals
+        renderer.toneMappingExposure = 1.0;
+        document.body.appendChild(renderer.domElement);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 1.6; // Player height
+        // --- 2. LIGHTING (The key to "Good Quality") ---
+        const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x111111, 0.4);
+        scene.add(hemiLight);
 
-            // Lighting
-            const ambient = new THREE.AmbientLight(0xffffff, 0.3);
-            scene.add(ambient);
+        const dirLight = new THREE.DirectionalLight(0xfff0dd, 1.5);
+        dirLight.position.set(20, 50, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; // High res shadows
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.bias = -0.0001;
+        scene.add(dirLight);
 
-            // Level Generation
-            createLevel();
-            createFigure();
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            // Controls Events
-            document.addEventListener('keydown', onKeyDown);
-            document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('click', () => {
-                if(document.pointerLockElement !== document.body && !isDead) {
-                    document.body.requestPointerLock();
-                }
-            });
-            document.addEventListener('mousemove', onMouseMove);
+        // --- 3. TEXTURE GENERATOR (Procedural Grid) ---
+        function createGridTexture(color1, color2) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const context = canvas.getContext('2d');
+            context.fillStyle = color2;
+            context.fillRect(0,0,512,512);
+            context.fillStyle = color1;
+            // Draw grid
+            context.fillRect(0,0,256,256);
+            context.fillRect(256,256,256,256);
+            // Add border for "tile" look
+            context.strokeStyle = 'rgba(0,0,0,0.1)';
+            context.lineWidth = 4;
+            context.strokeRect(0,0,512,512);
             
-            // Resize
-            window.addEventListener('resize', onWindowResize);
-
-            // Start Button
-            document.getElementById('btn-start').addEventListener('click', () => {
-                document.getElementById('start-screen').style.display = 'none';
-                document.body.requestPointerLock();
-                startAudio();
-            });
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.minFilter = THREE.NearestFilter; // Sharp pixels
+            tex.magFilter = THREE.NearestFilter;
+            return tex;
         }
 
-        // --- 3. CUSTOM CONTROLS (Manual Implementation) ---
-        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const texFloor = createGridTexture('#334155', '#1e293b'); // Dark Slate
+        const texWall = createGridTexture('#94a3b8', '#64748b'); // Concrete
+        const texSpawn = createGridTexture('#4ade80', '#22c55e'); // Green
+
+        // --- 4. PLAYER & GUN ---
+        const player = new THREE.Group();
+        scene.add(player);
+
+        // Materials
+        const matSkin = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.2 });
+        const matGun = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.2 });
         
-        function onMouseMove(event) {
-            if (document.pointerLockElement === document.body && !isDead) {
-                euler.setFromQuaternion(camera.quaternion);
-                euler.y -= event.movementX * 0.002;
-                euler.x -= event.movementY * 0.002;
-                euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-                camera.quaternion.setFromEuler(euler);
-            }
+        // Character Construction
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.3), matSkin);
+        body.position.y = 1.0; body.castShadow = true; player.add(body);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({color: 0xfacc15}));
+        head.position.y = 1.6; head.castShadow = true; player.add(head);
+
+        // Dynamic Limbs
+        const limbs = {};
+        function addLimb(name, x, y, z) {
+            const g = new THREE.Group(); g.position.set(x,y,z);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.7, 0.25), new THREE.MeshStandardMaterial({color: 0x1e293b}));
+            m.position.y = -0.35; m.castShadow = true; g.add(m);
+            player.add(g); limbs[name] = g;
         }
+        addLimb('armL', -0.45, 1.3, 0);
+        addLimb('armR', 0.45, 1.3, 0);
+        addLimb('legL', -0.2, 0.7, 0);
+        addLimb('legR', 0.2, 0.7, 0);
 
-        function onKeyDown(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyD': moveRight = true; break;
-                case 'KeyC': toggleCrouch(true); break;
-                case 'KeyE': interact(); break;
-            }
-        }
+        // Weapon System
+        const gunGroup = new THREE.Group();
+        const gunGeo = new THREE.BoxGeometry(0.12, 0.15, 0.5);
+        const gunMesh = new THREE.Mesh(gunGeo, matGun);
+        gunMesh.position.set(0, -0.6, 0.25);
+        gunGroup.add(gunMesh);
+        
+        // Muzzle Flash Light
+        const muzzleLight = new THREE.PointLight(0xffff00, 0, 5);
+        muzzleLight.position.set(0, -0.6, 0.6);
+        gunGroup.add(muzzleLight);
+        
+        limbs.armR.add(gunGroup);
 
-        function onKeyUp(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyD': moveRight = false; break;
-                case 'KeyC': toggleCrouch(false); break;
-            }
-        }
-
-        function toggleCrouch(down) {
-            if(down) {
-                isCrouching = true;
-                camera.position.y = 0.8;
-                document.getElementById('posture-icon').innerText = '🧎';
-            } else {
-                isCrouching = false;
-                camera.position.y = 1.6;
-                document.getElementById('posture-icon').innerText = '🏃';
-            }
-        }
-
-        // --- 4. LEVEL CREATION ---
-        function createLevel() {
-            // Floor
-            const floorGeo = new THREE.PlaneGeometry(100, 100);
-            const floorMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.8 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
-            scene.add(floor);
-
-            // Walls
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x263238 });
-            const createWall = (w, h, d, x, z) => {
-                const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-                mesh.position.set(x, h/2, z);
-                mesh.castShadow = true; mesh.receiveShadow = true;
+        // --- 5. PARTICLES & BULLETS ---
+        const particles = [];
+        function spawnParticles(pos, count, color) {
+            const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+            for(let i=0; i<count; i++){
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.copy(pos);
+                // Random explosion velocity
+                mesh.userData.vel = new THREE.Vector3(
+                    (Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10
+                );
+                mesh.userData.life = 1.0;
                 scene.add(mesh);
-                obstacles.push(mesh);
-            };
-            createWall(100, 10, 2, 0, -51);
-            createWall(100, 10, 2, 0, 51);
-            createWall(2, 10, 100, -51, 0);
-            createWall(2, 10, 100, 51, 0);
-
-            // Shelves (Obstacles)
-            const shelfMat = new THREE.MeshStandardMaterial({ color: 0x111 });
-            for (let i = 0; i < 40; i++) {
-                const w = 4; const h = 6; const d = 1.5;
-                const x = (Math.random() - 0.5) * 80;
-                const z = (Math.random() - 0.5) * 80;
-                if(Math.abs(x) < 5 && Math.abs(z) < 5) continue; // Spawn safe zone
-
-                const shelf = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), shelfMat);
-                shelf.position.set(x, h/2, z);
-                shelf.rotation.y = Math.random() > 0.5 ? Math.PI/2 : 0;
-                shelf.castShadow = true;
-                scene.add(shelf);
-                obstacles.push(shelf);
-
-                // Add random colored "books" on shelves
-                const box = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1.6), new THREE.MeshStandardMaterial({color: Math.random() * 0xffffff}));
-                box.position.set(x, Math.random()*5, z);
-                box.rotation.y = shelf.rotation.y;
-                scene.add(box);
+                particles.push(mesh);
             }
-
-            // Lights
-            for(let x=-30; x<=30; x+=30) {
-                for(let z=-30; z<=30; z+=30) {
-                    const pl = new THREE.PointLight(0xffaa55, 0.8, 30);
-                    pl.position.set(x, 8, z);
-                    pl.castShadow = true;
-                    scene.add(pl);
-                }
-            }
-
-            // Breakers (Collectibles)
-            for(let i=0; i<10; i++) {
-                const g = new THREE.Group();
-                const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshBasicMaterial({color: 0x00ffaa}));
-                const l = new THREE.PointLight(0x00ffaa, 1, 5);
-                g.add(m, l);
-                g.position.set((Math.random()-0.5)*80, 1, (Math.random()-0.5)*80);
-                g.userData = { type: 'fuse' };
-                interactables.push(g);
-                scene.add(g);
-            }
-
-            // Exit
-            const exit = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 1), new THREE.MeshStandardMaterial({color:0x555}));
-            exit.position.set(0, 3, -50);
-            exit.userData = { type: 'exit' };
-            interactables.push(exit);
-            scene.add(exit);
         }
 
-        // --- 5. THE FIGURE ---
-        function createFigure() {
-            figureGroup = new THREE.Group();
-            
-            const mat = new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.2 });
-            
-            // Legs
-            const l1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.5), mat); l1.position.set(-0.3, 0.75, 0);
-            const l2 = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.5), mat); l2.position.set(0.3, 0.75, 0);
-            
-            // Torso
-            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 1.2), mat); torso.position.set(0, 2.1, 0);
-            
-            // Head
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.4), mat); head.position.set(0, 3.0, 0);
-            // Mouth
-            const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.4), new THREE.MeshBasicMaterial({color:0x000}));
-            mouth.position.set(0, 3.0, 0.2);
+        const bullets = [];
+        const bulletGeo = new THREE.CapsuleGeometry(0.05, 0.4, 4, 8);
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0xfef08a }); 
 
-            // Arms (Long)
-            const a1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8), mat); a1.position.set(-0.55, 2.2, 0.3); a1.rotation.x = -0.4;
-            const a2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8), mat); a2.position.set(0.55, 2.2, 0.3); a2.rotation.x = -0.4;
+        function shoot() {
+            // 1. Recoil Animation
+            gunGroup.position.z -= 0.2; // Kick back
+            
+            // 2. Muzzle Flash
+            muzzleLight.intensity = 5;
+            setTimeout(() => muzzleLight.intensity = 0, 50);
 
-            figureGroup.add(l1,l2,torso,head,mouth,a1,a2);
-            figureGroup.position.set(0, 0, 40);
-            scene.add(figureGroup);
+            // 3. Screen Shake
+            shakeIntensity = 0.3;
+
+            // 4. UI Expand
+            document.getElementById('crosshair').style.transform = "scale(1.5)";
+            setTimeout(() => document.getElementById('crosshair').style.transform = "scale(1)", 100);
+
+            // 5. Spawn Bullet
+            const b = new THREE.Mesh(bulletGeo, bulletMat);
+            const pos = new THREE.Vector3(); gunMesh.getWorldPosition(pos);
+            b.position.copy(pos);
+            b.quaternion.copy(player.quaternion); // Match player rotation
+            b.rotation.x = Math.PI/2; // Orient capsule length-wise
+            
+            const vel = new THREE.Vector3(0, 0, 1).applyQuaternion(player.quaternion).multiplyScalar(50);
+            b.userData = { vel: vel, life: 2.0 };
+            scene.add(b);
+            bullets.push(b);
         }
 
-        function updateFigure(dt) {
-            if(isDead) return;
+        // --- 6. LEVEL BUILDER (With Textures) ---
+        const colliders = [];
+        function createBlock(x, y, z, w, h, d, type) {
+            let mat;
+            if(type === 'spawn') mat = new THREE.MeshStandardMaterial({ map: texSpawn });
+            else if(type === 'lava') mat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2.0 });
+            else mat = new THREE.MeshStandardMaterial({ map: texFloor });
+            
+            if(type !== 'lava' && type !== 'spawn') {
+                mat.map.repeat.set(w/2, d/2); // Tile textures properly
+            }
 
-            const playerPos = new THREE.Vector3(camera.position.x, 0, camera.position.z);
-            const figPos = figureGroup.position.clone();
-            const dist = figPos.distanceTo(playerPos);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            mesh.position.set(x, y, z);
             
-            // AI Logic
-            const isRunning = (moveForward || moveBackward || moveLeft || moveRight) && !isCrouching;
-            
-            // HEARING MECHANIC
-            if (isRunning && dist < 40) {
-                // He hears you
-                figureState = 'CHASE';
-                figureTarget.copy(playerPos);
-                figureSpeed = 9.0;
-                document.getElementById('status-msg').style.opacity = 1;
+            if(type === 'lava') {
+                // Add glow light to lava
+                const light = new THREE.PointLight(0xff0000, 2, 10);
+                light.position.set(0, 2, 0);
+                mesh.add(light);
             } else {
-                document.getElementById('status-msg').style.opacity = 0;
-                // If chasing but you stopped running, he goes to last spot then patrols
-                if (figureState === 'CHASE' && figPos.distanceTo(figureTarget) < 2) {
-                    figureState = 'PATROL';
-                    figureSpeed = 3.5;
-                }
+                mesh.castShadow = true; 
+                mesh.receiveShadow = true; 
+                colliders.push(mesh);
             }
             
-            // PATROL LOGIC
-            if (figureState === 'PATROL') {
-                if (figPos.distanceTo(figureTarget) < 2 || figureTarget.length() === 0) {
-                    figureTarget.set(
-                        (Math.random() - 0.5) * 80,
-                        0,
-                        (Math.random() - 0.5) * 80
-                    );
-                }
-            }
-
-            // Move Figure
-            const dir = new THREE.Vector3().subVectors(figureTarget, figPos).normalize();
-            
-            // Simple obstruction avoidance
-            obstacles.forEach(ob => {
-                if(figPos.distanceTo(ob.position) < 4) {
-                    const push = new THREE.Vector3().subVectors(figPos, ob.position).normalize();
-                    dir.add(push);
-                }
-            });
-            dir.normalize();
-
-            // Apply movement
-            figureGroup.position.addScaledVector(dir, figureSpeed * dt);
-            figureGroup.lookAt(figureTarget.x, 2, figureTarget.z);
-            
-            // Bobbing animation
-            figureGroup.position.y = Math.sin(Date.now() * 0.005) * 0.1;
-
-            // Kill trigger
-            if (dist < 1.5) {
-                die();
-            }
+            mesh.userData = { type: type };
+            scene.add(mesh);
+            return mesh;
         }
+
+        // Level Design
+        createBlock(0, -1, 0, 10, 1, 10, 'spawn');
+        createBlock(0, 0, 10, 4, 1, 4, 'base');
+        createBlock(0, 2, 18, 4, 1, 4, 'base');
+        createBlock(0, 4, 26, 4, 1, 4, 'base');
+        createBlock(0, 4, 35, 2, 0.5, 10, 'lava'); // Light Strip
+        createBlock(0, 3, 35, 12, 1, 12, 'base');
+        createBlock(0, 5, 50, 6, 1, 6, 'base');
+        createBlock(0, 6, 65, 10, 1, 10, 'spawn'); // Win
+        
+        // Massive floor
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({color: 0x0f172a}));
+        floor.rotation.x = -Math.PI/2;
+        floor.position.y = -20;
+        scene.add(floor);
+
+        // --- 7. LOGIC LOOP ---
+        let velocityY = 0;
+        let onGround = false;
+        let spawnPos = new THREE.Vector3(0, 2, 0);
+        let shakeIntensity = 0;
+        
+        // Camera State
+        let camPitch = 0, camYaw = Math.PI;
+        const keys = { w:0, a:0, s:0, d:0, sp:0 };
+        
+        // Input
+        const startScreen = document.getElementById('start-screen');
+        startScreen.onclick = () => document.body.requestPointerLock();
+        document.onpointerlockchange = () => startScreen.style.opacity = document.pointerLockElement ? 0 : 1;
+        document.onmousemove = (e) => {
+            if(document.pointerLockElement) {
+                camYaw -= e.movementX * 0.002;
+                camPitch -= e.movementY * 0.002;
+                camPitch = Math.max(-0.6, Math.min(0.8, camPitch));
+            }
+        };
+        document.onmousedown = () => { if(document.pointerLockElement) shoot(); };
+        document.onkeydown = (e) => {
+            if(e.code==='KeyW') keys.w=1; if(e.code==='KeyS') keys.s=1;
+            if(e.code==='KeyA') keys.a=1; if(e.code==='KeyD') keys.d=1;
+            if(e.code==='Space') keys.sp=1; if(e.code==='KeyR') die();
+        };
+        document.onkeyup = (e) => {
+            if(e.code==='KeyW') keys.w=0; if(e.code==='KeyS') keys.s=0;
+            if(e.code==='KeyA') keys.a=0; if(e.code==='KeyD') keys.d=0;
+            if(e.code==='Space') keys.sp=0;
+        };
 
         function die() {
-            isDead = true;
-            document.exitPointerLock();
-            document.getElementById('jumpscare-overlay').style.display = 'flex';
-            playSound('scream');
-            setTimeout(() => {
-                document.getElementById('jumpscare-overlay').style.display = 'none';
-                document.getElementById('death-screen').style.display = 'flex';
-            }, 1500);
-        }
-
-        // --- 6. INTERACTION & GAME LOOP ---
-        function interact() {
-            if(isDead) return;
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
-            const hits = raycaster.intersectObjects(interactables, true);
-
-            if(hits.length > 0 && hits[0].distance < 4) {
-                let obj = hits[0].object;
-                while(obj.parent && !obj.userData.type) obj = obj.parent;
-
-                if(obj.userData.type === 'fuse') {
-                    fusesFound++;
-                    playSound('collect');
-                    obj.position.y = -100; // Remove
-                    document.getElementById('items-count').innerText = `${fusesFound} / 10`;
-                } else if(obj.userData.type === 'exit') {
-                    if(fusesFound >= 10) {
-                        document.exitPointerLock();
-                        document.getElementById('win-screen').style.display = 'flex';
-                    }
-                }
-            }
-        }
-
-        // Simple Audio
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function startAudio() { if(audioCtx.state === 'suspended') audioCtx.resume(); }
-        function playSound(type) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            if(type==='collect') {
-                osc.type='sine'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime+0.1);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime); 
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.2);
-                osc.start(); osc.stop(audioCtx.currentTime+0.2);
-            } else if(type==='scream') {
-                osc.type='sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime+1);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); 
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1);
-                osc.start(); osc.stop(audioCtx.currentTime+1);
-            }
+            player.position.copy(spawnPos);
+            velocityY = 0;
+            const dt = document.getElementById('death-txt');
+            dt.innerText = parseInt(dt.innerText) + 1;
+            // Explosion effect on death
+            spawnParticles(player.position, 20, 0xff0000);
         }
 
         const clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
 
         function animate() {
             requestAnimationFrame(animate);
-            const delta = clock.getDelta();
+            const dt = Math.min(clock.getDelta(), 0.1);
+            const time = Date.now() * 0.001;
 
-            if (!isDead && document.pointerLockElement === document.body) {
-                // Movement
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
-                
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
-
-                const currentSpeed = isCrouching ? speedCrouch : speedRun;
-
-                if (moveForward || moveBackward) velocity.z -= direction.z * currentSpeed * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * currentSpeed * delta;
-
-                const moveX = -velocity.x * delta;
-                const moveZ = -velocity.z * delta;
-
-                // Move logic (Basic Camera translation)
-                camera.translateX(moveX);
-                camera.translateZ(moveZ);
-                camera.position.y = isCrouching ? 0.8 : 1.6;
-
-                // UI Raycast
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
-                const hits = raycaster.intersectObjects(interactables, true);
-                const txt = document.getElementById('interact-text');
-                if(hits.length > 0 && hits[0].distance < 4) {
-                    txt.style.opacity = 1;
-                    const type = hits[0].object.userData.type || hits[0].object.parent.userData.type;
-                    if(type === 'fuse') txt.innerText = "[E] Collect Breaker";
-                    if(type === 'exit') txt.innerText = fusesFound >= 10 ? "[E] ESCAPE" : "LOCKED (Need 10)";
-                } else {
-                    txt.style.opacity = 0;
-                }
+            // 1. Movement Physics
+            velocityY -= 50 * dt; // Heavier gravity feels better
+            
+            const speed = 14;
+            const fwd = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+            const right = new THREE.Vector3(Math.sin(camYaw - Math.PI/2), 0, Math.cos(camYaw - Math.PI/2));
+            
+            const move = new THREE.Vector3().addScaledVector(fwd, keys.s-keys.w).addScaledVector(right, keys.d-keys.a);
+            const isMoving = move.lengthSq() > 0;
+            
+            if(isMoving) {
+                player.position.addScaledVector(move.normalize(), speed * dt);
+                player.rotation.y = Math.atan2(-move.x, -move.z); // Face movement
             }
 
-            if(figureGroup) updateFigure(delta);
+            // 2. Collision
+            raycaster.set(player.position.clone().add(new THREE.Vector3(0,1,0)), new THREE.Vector3(0,-1,0));
+            const hits = raycaster.intersectObjects(colliders);
+            onGround = false;
+            if(hits.length > 0 && hits[0].distance < 1.1 && velocityY <= 0) {
+                onGround = true; velocityY = 0; player.position.y = hits[0].point.y;
+                if(hits[0].object.userData.type === 'win') document.getElementById('level-txt').innerText = "WINNER";
+            }
+            if(player.position.y < -10) die();
+            if(onGround && keys.sp) { velocityY = 18; onGround = false; }
+            player.position.y += velocityY * dt;
+
+            // 3. Animation & Juice
+            // Gun Return (Recoil recovery)
+            gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, 0.25, dt * 10);
+            
+            // Screen Shake decay
+            shakeIntensity = THREE.MathUtils.lerp(shakeIntensity, 0, dt * 10);
+            
+            // Limb Animations
+            if(!onGround) {
+                limbs.armL.rotation.x = Math.PI; limbs.armR.rotation.x = Math.PI - 0.2; // Arms up
+                limbs.legL.rotation.x = -0.5; limbs.legR.rotation.x = 0.5;
+            } else if(isMoving) {
+                limbs.armL.rotation.x = Math.sin(time*12)*0.6;
+                limbs.legL.rotation.x = Math.sin(time*12)*0.6;
+                limbs.legR.rotation.x = Math.cos(time*12)*0.6;
+                // Gun arm sway less
+                limbs.armR.rotation.x = Math.cos(time*12)*0.2 - 1.4;
+            } else {
+                limbs.armL.rotation.x = 0; limbs.armR.rotation.x = -1.4; // Idle
+                limbs.legL.rotation.x = 0; limbs.legR.rotation.x = 0;
+            }
+
+            // 4. Bullets & Particles
+            for(let i=bullets.length-1; i>=0; i--) {
+                const b = bullets[i];
+                const moveDist = b.userData.vel.clone().multiplyScalar(dt);
+                
+                // Bullet Collision
+                raycaster.set(b.position, b.userData.vel.clone().normalize());
+                const bHits = raycaster.intersectObjects(colliders);
+                if(bHits.length > 0 && bHits[0].distance < moveDist.length()) {
+                    spawnParticles(bHits[0].point, 5, 0xffff00); // Sparks
+                    scene.remove(b); bullets.splice(i,1); continue;
+                }
+                
+                b.position.add(moveDist);
+                b.userData.life -= dt;
+                if(b.userData.life <= 0) { scene.remove(b); bullets.splice(i,1); }
+            }
+
+            for(let i=particles.length-1; i>=0; i--) {
+                const p = particles[i];
+                p.position.addScaledVector(p.userData.vel, dt);
+                p.rotation.x += dt * 5;
+                p.userData.vel.y -= 20 * dt; // Gravity on particles
+                p.scale.multiplyScalar(0.95); // Shrink
+                if(p.scale.x < 0.01) { scene.remove(p); particles.splice(i,1); }
+            }
+
+            // 5. Camera Follow
+            const camDist = 7;
+            const camX = player.position.x + camDist * Math.sin(camYaw) * Math.cos(camPitch);
+            const camY = player.position.y + camDist * Math.sin(camPitch) + 2.5;
+            const camZ = player.position.z + camDist * Math.cos(camYaw) * Math.cos(camPitch);
+            
+            // Add Shake
+            const shakeX = (Math.random()-0.5) * shakeIntensity;
+            const shakeY = (Math.random()-0.5) * shakeIntensity;
+
+            camera.position.lerp(new THREE.Vector3(camX + shakeX, camY + shakeY, camZ), 0.15);
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1.5, 0)));
+
             renderer.render(scene, camera);
         }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+        animate();
+        
+        window.onresize = () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
