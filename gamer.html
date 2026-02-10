@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: The Figure (Fixed Controls)</title>
+    <title>PolyCombat: Balanced</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -85,7 +85,7 @@
 
     <div id="menu">
         <h1>POLY COMBAT</h1>
-        <p>Waves 1 & 2: Shoot Bosses & Minions<br>Wave 3: NO GUN. Find 30 Nuclear Packets in the Library to kill The Figure.</p>
+        <p>Minions are tough. Audio is ON.<br>Standard Controls (W = Forward).</p>
         <button id="play-btn">START MISSION</button>
     </div>
 
@@ -127,6 +127,60 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import * as CANNON from 'cannon-es';
+
+        // --- AUDIO SYSTEM ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+
+            if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            } 
+            else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            }
+            else if (type === 'die') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+            }
+            else if (type === 'collect') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            }
+            else if (type === 'jump') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(400, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            }
+        }
 
         // --- CONFIG ---
         const CONFIG = {
@@ -249,14 +303,17 @@
                 camera.updateProjectionMatrix();
 
                 const move = new THREE.Vector3();
-                // --- CONTROLS FIX: SWAPPED ADD/SUB LOGIC ---
-                if(input.w) move.sub(fwd); if(input.s) move.add(fwd);
-                if(input.d) move.sub(right); if(input.a) move.add(right);
+                // STANDARD CONTROLS (W = Forward)
+                if(input.w) move.add(fwd); if(input.s) move.sub(fwd);
+                if(input.d) move.add(right); if(input.a) move.sub(right);
                 move.normalize();
 
                 this.body.velocity.x = move.x * speed;
                 this.body.velocity.z = move.z * speed;
-                if(input.space && Math.abs(this.body.velocity.y) < 0.1) this.body.velocity.y = 15;
+                if(input.space && Math.abs(this.body.velocity.y) < 0.1) {
+                    this.body.velocity.y = 15;
+                    playSound('jump');
+                }
 
                 camera.position.copy(this.body.position).add(new THREE.Vector3(0,1.5,0));
                 updateShake();
@@ -267,8 +324,9 @@
             takeDamage(amt) {
                 if(GAME.inCutscene) return;
                 this.hp -= amt;
-                document.getElementById('hp-fill').style.width = this.hp + '%';
+                document.getElementById('hp-fill').style.width = Math.max(0, this.hp) + '%';
                 addShake(0.5);
+                playSound('hit');
                 const f = document.getElementById('dmg-flash'); f.style.opacity = 0.8;
                 setTimeout(()=>f.style.opacity=0, 200);
                 if(this.hp <= 0) { alert("YOU DIED"); location.reload(); }
@@ -278,7 +336,9 @@
         // --- MINIONS (ROBLOX STYLE) ---
         class Minion {
             constructor(pos) {
-                this.hp = 30; // 2-3 hits
+                // BALANCED HP
+                this.hp = 150; // Takes about 4-5 hits
+                
                 this.mesh = new THREE.Group();
                 const mat = new THREE.MeshStandardMaterial({ color: 0xffff00 }); // Yellow skin
                 const blue = new THREE.MeshStandardMaterial({ color: 0x0000ff });
@@ -323,11 +383,14 @@
                     b.position.copy(this.body.position).add(new THREE.Vector3(0,1,0));
                     scene.add(b);
                     enemyBullets.push({ mesh:b, dir:dir.clone(), life: 100 });
+                    playSound('shoot');
                 }
             }
             takeDamage(amt) {
                 this.hp -= amt;
+                playSound('hit');
                 if(this.hp <= 0) {
+                    playSound('die');
                     spawnParticles(this.body.position, 10, 0xffff00);
                     scene.remove(this.mesh);
                     world.removeBody(this.body);
@@ -341,20 +404,16 @@
         class Boss {
             constructor(type) {
                 this.type = type;
-                this.maxHp = type === 1 ? 2000 : (type === 2 ? 4000 : 10000); // Boss 3 has high HP (plot armor)
+                this.maxHp = type === 1 ? 2000 : (type === 2 ? 4000 : 10000); 
                 this.hp = this.maxHp;
                 this.isDead = false;
                 
-                // Boss 3 Specific
                 this.nextScream = 0;
 
-                // Mesh
                 this.mesh = new THREE.Group();
                 let mat;
-                if(type === 3) mat = new THREE.MeshStandardMaterial({ color: 0x880000, roughness: 0.5 }); // The Figure (Red/Fleshy)
+                if(type === 3) mat = new THREE.MeshStandardMaterial({ color: 0x880000, roughness: 0.5 });
                 else mat = new THREE.MeshStandardMaterial({ color: type===1?0x888899:0x111111, metalness: 0.8 });
-
-                const h = type===3 ? 12 : 10; // Figure is taller
                 
                 // Body Parts
                 const legG = new THREE.BoxGeometry(1.5, 4, 1.5);
@@ -363,11 +422,9 @@
                 const torso = new THREE.Mesh(new THREE.BoxGeometry(4, 5, 2.5), mat); torso.position.y = 6.5;
                 const head = new THREE.Mesh(new THREE.BoxGeometry(2, type===3?3:2.5, 2), mat); head.position.y = type===3?11:10;
                 
-                // Arms
                 this.armL = new THREE.Mesh(new THREE.BoxGeometry(1.2, type===3?8:5, 1.2), mat); this.armL.position.set(-2.8, 7, 0);
                 this.armR = new THREE.Mesh(new THREE.BoxGeometry(1.2, type===3?8:5, 1.2), mat); this.armR.position.set(2.8, 7, 0);
 
-                // Figure Mouth (Giant glowing mouth)
                 if(type === 3) {
                     const mouth = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 0.2), new THREE.MeshBasicMaterial({color:0xffff00}));
                     mouth.position.set(0, 11, 1.0); this.mesh.add(mouth);
@@ -380,11 +437,10 @@
                 scene.add(this.mesh);
 
                 this.body = new CANNON.Body({ mass: 1000, fixedRotation: true, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 2)), material: matEntity });
-                this.body.position.set(0, 10, type===3 ? -80 : -40); // Start far away
-                if(type===3) this.body.position.set(0,10,0); // Start inside library
+                this.body.position.set(0, 10, type===3 ? -80 : -40); 
+                if(type===3) this.body.position.set(0,10,0); 
                 world.addBody(this.body);
 
-                // UI
                 const hud = document.getElementById('boss-hud');
                 hud.style.display = 'block';
                 const names = ["", "IRON KNIGHT", "SHADOW STALKER", "THE FIGURE"];
@@ -402,29 +458,23 @@
                 const dist = this.body.position.distanceTo(playerPos);
                 const t = Date.now() * 0.01;
 
-                // --- BOSS 3 AI (FIGURE) ---
                 if(this.type === 3) {
-                    // Wanders randomly if player is far (>30), Chases if close
                     if(dist < 30) {
-                         // CHASE
                          const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
-                         this.body.velocity.x = dir.x * 35; // Fast walk
+                         this.body.velocity.x = dir.x * 35;
                          this.body.velocity.z = dir.z * 35;
                          
-                         // Scream Shake
                          if(Date.now() > this.nextScream) {
                              addShake(3.0);
+                             playSound('die'); 
                              this.nextScream = Date.now() + 2000;
                          }
-                         
-                         // Attack
                          if(dist < 6) {
                              this.armL.rotation.x = -Math.PI/2 + Math.sin(t*20);
                              this.armR.rotation.x = -Math.PI/2 - Math.sin(t*20);
-                             if(Math.random()>0.9) player.takeDamage(5); // Huge Damage
+                             if(Math.random()>0.9) player.takeDamage(5); 
                          }
                     } else {
-                        // WANDER
                         if(Math.random() > 0.98) {
                             this.wanderDir = new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize();
                         }
@@ -434,7 +484,6 @@
                         }
                     }
                 } 
-                // --- BOSS 1 & 2 AI ---
                 else {
                     const speed = this.type === 1 ? 40 : 60;
                     const dir = new THREE.Vector3().subVectors(playerPos, this.body.position).normalize();
@@ -451,7 +500,6 @@
                 this.mesh.position.y -= 6;
                 this.mesh.lookAt(playerPos.x, this.mesh.position.y, playerPos.z);
                 
-                // Walk Anim
                 this.legL.rotation.x = Math.sin(t*8)*0.8;
                 this.legR.rotation.x = Math.sin(t*8+Math.PI)*0.8;
 
@@ -459,11 +507,13 @@
             }
 
             takeDamage(amt) {
-                if(this.type === 3) return; // Immune to normal bullets
+                if(this.type === 3) return; 
                 this.hp -= amt;
+                playSound('hit');
                 document.getElementById('boss-bar-fill').style.width = (this.hp/this.maxHp)*100 + '%';
                 if(this.hp <= 0) {
                     this.isDead = true;
+                    playSound('die');
                     world.removeBody(this.body);
                     scene.remove(this.mesh);
                     spawnParticles(this.mesh.position, 100, 0xffaa00, 2);
@@ -480,11 +530,8 @@
             constructor(x, z) {
                 this.mesh = new THREE.Mesh(new THREE.BoxGeometry(2,2,2), new THREE.MeshBasicMaterial({color:0x00ff00, wireframe:true}));
                 this.mesh.position.set(x, 2, z);
-                
-                // Inner glow
                 const inner = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({color:0xccffcc}));
                 this.mesh.add(inner);
-                
                 scene.add(this.mesh);
                 this.pos = new THREE.Vector3(x,2,z);
                 this.active = true;
@@ -494,13 +541,14 @@
                 this.mesh.rotation.y += 0.05;
                 if(this.pos.distanceTo(playerPos) < 5) {
                     document.getElementById('interact-msg').style.display = 'block';
-                    return true; // Can interact
+                    return true; 
                 }
                 return false;
             }
             collect() {
                 if(!this.active) return;
                 this.active = false;
+                playSound('collect');
                 scene.remove(this.mesh);
                 spawnParticles(this.pos, 10, 0x00ff00);
                 GAME.packets++;
@@ -528,14 +576,13 @@
             GAME.canShoot = false;
             document.getElementById('quest-hud').style.display = 'block';
             
-            // Grid of shelves
             const shelfGeo = new THREE.BoxGeometry(4, 20, 15);
             const shelfMat = new THREE.MeshStandardMaterial({color:0x331100});
             
             for(let x=-80; x<=80; x+=20) {
                 for(let z=-80; z<=80; z+=25) {
-                    if(Math.random() > 0.8) continue; // Random gaps
-                    if(Math.abs(x) < 10 && Math.abs(z) < 10) continue; // Clear spawn
+                    if(Math.random() > 0.8) continue; 
+                    if(Math.abs(x) < 10 && Math.abs(z) < 10) continue; 
 
                     const m = new THREE.Mesh(shelfGeo, shelfMat);
                     m.position.set(x, 10, z);
@@ -547,7 +594,6 @@
                 }
             }
 
-            // Spawn Packets
             for(let i=0; i<30; i++) {
                 const x = (Math.random()-0.5)*150;
                 const z = (Math.random()-0.5)*150;
@@ -566,14 +612,11 @@
             setTimeout(()=>title.style.opacity=0, 4000);
 
             if(n < 3) {
-                // Arena Bosses
                 currentBoss = new Boss(n);
-                // Spawn Minions
                 for(let i=0; i<5; i++) {
                     minions.push(new Minion(new THREE.Vector3((Math.random()-0.5)*50, 5, (Math.random()-0.5)*50)));
                 }
             } else {
-                // Library
                 buildLibrary();
                 currentBoss = new Boss(3);
                 player.body.position.set(0,5,0);
@@ -589,37 +632,35 @@
             document.getElementById('wave-msg').style.color = "lime";
             document.getElementById('wave-msg').style.opacity = 1;
 
-            // Cutscene Logic
             const targetPos = player.body.position.clone();
             currentBoss.body.position.set(targetPos.x + 10, 5, targetPos.z);
             currentBoss.body.velocity.set(0,0,0);
             
-            // Animation Loop takeover handled in animate()
             setTimeout(() => {
-                // Boss Grabs Player (simulated)
                 currentBoss.mesh.position.set(targetPos.x+2, 5, targetPos.z);
                 camera.lookAt(currentBoss.mesh.position);
             }, 100);
 
             setTimeout(() => {
                 document.getElementById('wave-msg').innerText = "LAUNCHER READY!";
-                // Crafting visual
+                playSound('collect');
                 gunGroup.visible = true; 
-                gunGroup.children[0].scale.set(3,3,3); // Big gun
+                gunGroup.children[0].scale.set(3,3,3); 
                 gunGroup.children[0].material.color.setHex(0x00ff00);
             }, 2000);
 
             setTimeout(() => {
-                // KILL
-                spawnParticles(currentBoss.mesh.position, 500, 0x00ff00, 5); // Nuke explosion
-                spawnParticles(currentBoss.mesh.position, 200, 0xff0000, 2); // Blood
+                spawnParticles(currentBoss.mesh.position, 500, 0x00ff00, 5); 
+                spawnParticles(currentBoss.mesh.position, 200, 0xff0000, 2); 
+                playSound('die');
                 scene.remove(currentBoss.mesh);
                 addShake(10);
-                document.body.style.backgroundColor = "white"; // Flash
+                document.body.style.backgroundColor = "white"; 
                 setTimeout(()=> document.body.style.backgroundColor = "#000", 100);
             }, 3000);
 
             setTimeout(() => {
+                playSound('win');
                 alert("VICTORY! THE FIGURE DESTROYED.");
                 location.reload();
             }, 4000);
@@ -633,7 +674,6 @@
             if(e.key==='Shift') keys.shift=true; 
             if(e.code==='Space') keys.space=true; 
 
-            // INTERACT
             if(k === 'e' && GAME.wave === 3) {
                 packets.forEach(p => {
                     if(p.update(player.body.position)) p.collect();
@@ -650,6 +690,7 @@
 
         const bullets = [];
         function shoot() {
+            playSound('shoot');
             addShake(0.2); gunGroup.position.z += 0.3; gunGroup.rotation.x += 0.2;
             const m = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({color:0x00ffff}));
             m.position.copy(camera.position); scene.add(m);
@@ -665,11 +706,11 @@
         const clock = new THREE.Clock();
         const controls = new PointerLockControls(camera, document.body);
         document.getElementById('play-btn').onclick = () => { 
+            if(audioCtx.state === 'suspended') audioCtx.resume();
             controls.lock(); GAME.active = true; document.getElementById('menu').style.display='none'; 
             startWave(1); 
         };
 
-        // Arena Floor
         const floor = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
         floor.quaternion.setFromEuler(-Math.PI/2, 0, 0); world.addBody(floor);
         const grid = new THREE.GridHelper(200, 50, 0x8800ff, 0x220044); scene.add(grid);
@@ -681,42 +722,34 @@
             world.step(1/60, dt, 3);
             player.update(dt, keys);
             
-            // Interaction Check UI
             let canInteract = false;
             if(GAME.wave === 3) {
                 packets.forEach(p => { if(p.update(player.body.position)) canInteract = true; });
             }
             document.getElementById('interact-msg').style.display = canInteract ? 'block' : 'none';
 
-            // Minions
             for(let i=minions.length-1; i>=0; i--) {
                 minions[i].update(player.body.position, dt);
             }
 
-            // Boss
             if(currentBoss) currentBoss.update(player.body.position, dt);
 
-            // Cutscene Camera Override
             if(GAME.inCutscene && currentBoss && !currentBoss.isDead) {
                 camera.lookAt(currentBoss.mesh.position.x, currentBoss.mesh.position.y + 8, currentBoss.mesh.position.z);
             }
 
-            // Guns & Bullets
             gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.6, 0.1);
             gunGroup.rotation.x = THREE.MathUtils.lerp(gunGroup.rotation.x, 0, 0.1);
 
-            // Player Bullets
             for(let i=bullets.length-1; i>=0; i--) {
                 const b = bullets[i];
                 b.mesh.position.copy(b.body.position);
                 b.life--;
                 
-                // Hit Boss
                 if(currentBoss && !currentBoss.isDead && b.mesh.position.distanceTo(currentBoss.mesh.position) < 5) {
                     currentBoss.takeDamage(15); spawnParticles(b.mesh.position, 5, 0x00ffff);
                     scene.remove(b.mesh); world.removeBody(b.body); bullets.splice(i,1); continue;
                 }
-                // Hit Minions
                 let hitMinion = false;
                 for(let j=minions.length-1; j>=0; j--) {
                     if(b.mesh.position.distanceTo(minions[j].mesh.position) < 2) {
@@ -729,19 +762,17 @@
                 if(b.life<=0 || b.mesh.position.y<0) { scene.remove(b.mesh); world.removeBody(b.body); bullets.splice(i,1); }
             }
 
-            // Enemy Bullets
             for(let i=enemyBullets.length-1; i>=0; i--) {
                 const b = enemyBullets[i];
                 b.mesh.position.addScaledVector(b.dir, 40*dt);
                 b.life--;
                 if(b.mesh.position.distanceTo(player.body.position) < 2) {
-                    player.takeDamage(5);
+                    player.takeDamage(15); // Increased Damage
                     scene.remove(b.mesh); enemyBullets.splice(i,1); continue;
                 }
                 if(b.life<=0) { scene.remove(b.mesh); enemyBullets.splice(i,1); }
             }
 
-            // Particles
             for(let i=particles.length-1; i>=0; i--) {
                 const p = particles[i]; p.life -= dt;
                 p.mesh.position.addScaledVector(p.vel, dt); p.mesh.scale.setScalar(p.life);
