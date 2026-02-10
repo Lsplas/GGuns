@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PolyCombat: The Figure</title>
+    <title>PolyCombat: The Figure (Fixed Controls)</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -249,8 +249,9 @@
                 camera.updateProjectionMatrix();
 
                 const move = new THREE.Vector3();
-                if(input.w) move.add(fwd); if(input.s) move.sub(fwd);
-                if(input.d) move.add(right); if(input.a) move.sub(right);
+                // --- CONTROLS FIX: SWAPPED ADD/SUB LOGIC ---
+                if(input.w) move.sub(fwd); if(input.s) move.add(fwd);
+                if(input.d) move.sub(right); if(input.a) move.add(right);
                 move.normalize();
 
                 this.body.velocity.x = move.x * speed;
